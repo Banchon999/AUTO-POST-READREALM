@@ -570,7 +570,7 @@
       <div id="reorder-panel" class="bu-panel hidden">
         <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">🔀 สลับลำดับตอน</div>
 
-        <!-- Swap any two -->
+        <!-- Quick swap any two -->
         <div style="margin-bottom:12px;">
           <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">สลับ 2 ตอนใดก็ได้</div>
           <div class="form-row" style="margin-bottom:8px;">
@@ -589,10 +589,17 @@
         <hr class="divider" style="margin:10px 0;">
 
         <!-- Arrow mode -->
-        <label class="bu-check-label">
+        <label class="bu-check-label" style="margin-bottom:10px;">
           <input type="checkbox" id="reorder-arrows-mode" onchange="toggleReorderArrows()" style="accent-color:var(--accent);width:15px;height:15px;" />
-          แสดงปุ่ม ↑↓ ในรายการตอน (เลื่อนทีละขั้น)
+          แสดงปุ่ม ↑↓ ในรายการ — จัดเรียงก่อน แล้วกด "บันทึกลำดับ"
         </label>
+
+        <!-- Save bar (shown when pending) -->
+        <div id="reorder-save-bar" class="hidden" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--yellow-dim);border:1px solid rgba(234,179,8,0.3);border-radius:8px;">
+          <span style="font-family:var(--mono);font-size:12px;color:var(--yellow);flex:1;" id="reorder-pending-text">มีการเปลี่ยนลำดับ</span>
+          <button class="btn-sm primary" onclick="saveChapterOrder()">💾 บันทึกลำดับ</button>
+          <button class="btn-sm" onclick="cancelReorder()">↩ ยกเลิก</button>
+        </div>
       </div>
 
       <div id="manage-list"></div>
@@ -1470,6 +1477,8 @@ async function batchUpdateSelected(){
 
 // ─── Reorder / Swap Chapters ─────────────────────────────
 let isReorderMode = false;
+let reorderPending = false;
+let originalChapterOrder = [];
 
 function toggleReorderPanel(){
   const panel = document.getElementById('reorder-panel');
@@ -1489,49 +1498,80 @@ function populateSwapSelects(){
   document.getElementById('swap-ch2').innerHTML = opts;
 }
 
-async function swapTwoChapters(){
+function swapTwoChapters(){
   const id1 = document.getElementById('swap-ch1').value;
   const id2 = document.getElementById('swap-ch2').value;
   if(!id1||!id2){ log('warn','กรุณาเลือกทั้ง 2 ตอน'); return; }
   if(id1===id2){ log('warn','กรุณาเลือกตอนที่ต่างกัน'); return; }
-  await doChapterSwitch(id1, id2);
+  const i1=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id1));
+  const i2=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id2));
+  if(i1<0||i2<0) return;
+  if(!reorderPending) originalChapterOrder = [...publishedChapters];
+  [publishedChapters[i1],publishedChapters[i2]]=[publishedChapters[i2],publishedChapters[i1]];
+  markReorderPending();
+  renderManageList();
+  populateSwapSelects();
+  const t1=publishedChapters[i1].novel_chapter_title||publishedChapters[i1].chapter_title||id1;
+  const t2=publishedChapters[i2].novel_chapter_title||publishedChapters[i2].chapter_title||id2;
+  log('info',`↔ สลับลำดับ (ยังไม่บันทึก): "${t1}" ↔ "${t2}"`);
 }
 
 function toggleReorderArrows(){
   isReorderMode = document.getElementById('reorder-arrows-mode').checked;
+  if(isReorderMode && !reorderPending) originalChapterOrder = [...publishedChapters];
   renderManageList();
 }
 
-async function moveChapter(id, dir){
+function moveChapter(id, dir){
   const idx = publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id));
   const targetIdx = idx + dir;
   if(idx<0||targetIdx<0||targetIdx>=publishedChapters.length) return;
-  const targetId = String(publishedChapters[targetIdx].novel_chapter_ID||publishedChapters[targetIdx].chapter_ID||publishedChapters[targetIdx].id||publishedChapters[targetIdx]._id);
-  await doChapterSwitch(id, targetId);
+  if(!reorderPending) originalChapterOrder = [...publishedChapters];
+  [publishedChapters[idx],publishedChapters[targetIdx]]=[publishedChapters[targetIdx],publishedChapters[idx]];
+  markReorderPending();
+  renderManageList();
 }
 
-async function doChapterSwitch(id1, id2){
+function markReorderPending(){
+  reorderPending = true;
+  const bar = document.getElementById('reorder-save-bar');
+  if(bar) bar.classList.remove('hidden');
+  const txt = document.getElementById('reorder-pending-text');
+  if(txt) txt.textContent = `มีการเปลี่ยนลำดับ · รอบันทึก`;
+}
+
+async function saveChapterOrder(){
+  const items = publishedChapters.map(ch=>({
+    chapter_ID: String(ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id),
+    chapter_title: ch.novel_chapter_title||ch.chapter_title||ch.title||''
+  }));
   try {
-    const r = await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterSwitch',{
-      chapter_ID_1: String(id1),
-      chapter_ID_2: String(id2),
-      novel_ID: selectedNovelId
-    });
+    const r = await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterSwitch',{items});
     if(r.ok){
-      const i1=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id1));
-      const i2=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id2));
-      if(i1>=0&&i2>=0)[publishedChapters[i1],publishedChapters[i2]]=[publishedChapters[i2],publishedChapters[i1]];
+      log('ok','✓ บันทึกลำดับสำเร็จ');
+      resetReorderPending();
       renderManageList();
-      const panel=document.getElementById('reorder-panel');
-      if(panel&&!panel.classList.contains('hidden')) populateSwapSelects();
-      const t1=publishedChapters[i2]?.novel_chapter_title||publishedChapters[i2]?.chapter_title||id1;
-      const t2=publishedChapters[i1]?.novel_chapter_title||publishedChapters[i1]?.chapter_title||id2;
-      log('ok',`✓ สลับลำดับ: "${t1}" ↔ "${t2}"`);
+      populateSwapSelects();
     } else {
       const e=await r.json().catch(()=>({}));
-      log('err',`สลับล้มเหลว: ${r.status} · ${e?.message||''}`);
+      log('err',`บันทึกล้มเหลว: ${r.status} · ${e?.message||''}`);
     }
-  } catch(e){ log('err','สลับล้มเหลว: '+e.message); }
+  } catch(e){ log('err','บันทึกล้มเหลว: '+e.message); }
+}
+
+function cancelReorder(){
+  publishedChapters = [...originalChapterOrder];
+  resetReorderPending();
+  renderManageList();
+  populateSwapSelects();
+  log('info','ยกเลิกการเปลี่ยนลำดับ');
+}
+
+function resetReorderPending(){
+  reorderPending = false;
+  originalChapterOrder = [];
+  const bar = document.getElementById('reorder-save-bar');
+  if(bar) bar.classList.add('hidden');
 }
 
 // ─── ZIP Batch Update ─────────────────────────────────────
