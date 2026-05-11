@@ -508,6 +508,51 @@
             </div>
           </div>
 
+          <!-- Content update -->
+          <div>
+            <label class="bu-check-label">
+              <input type="checkbox" id="bu-update-content" onchange="onBatchUpdateToggle()" />
+              อัปเดตเนื้อหา
+            </label>
+            <div id="bu-content-opts" class="bu-sub hidden">
+              <div class="radio-group" id="bu-content-mode-group" style="margin-bottom:10px;">
+                <label class="radio-opt checked" onclick="selectBatchContent(this,'findreplace')"><input type="radio" name="bu-content-mode" checked /> 🔍 Find &amp; Replace</label>
+                <label class="radio-opt" onclick="selectBatchContent(this,'prepend')"><input type="radio" name="bu-content-mode" /> ⬆ เพิ่มหน้า</label>
+                <label class="radio-opt" onclick="selectBatchContent(this,'append')"><input type="radio" name="bu-content-mode" /> ⬇ เพิ่มท้าย</label>
+              </div>
+
+              <!-- Find & Replace -->
+              <div id="bu-findreplace-opts">
+                <div class="form-row" style="margin-bottom:8px;">
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>ค้นหา (Find)</label>
+                    <input type="text" id="bu-find-text" placeholder="ข้อความที่ต้องการค้นหา" />
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>แทนที่ด้วย (Replace)</label>
+                    <input type="text" id="bu-replace-text" placeholder="ว่าง = ลบออก" />
+                  </div>
+                </div>
+                <label class="bu-check-label" style="font-size:12px;color:var(--text-muted);">
+                  <input type="checkbox" id="bu-find-regex" style="accent-color:var(--accent);width:13px;height:13px;" />
+                  ใช้ Regular Expression (Regex)
+                </label>
+              </div>
+
+              <!-- Prepend -->
+              <div id="bu-prepend-opts" class="hidden">
+                <label>ข้อความที่จะเพิ่มที่หน้าเนื้อหา</label>
+                <textarea id="bu-prepend-text" class="edit-ta" style="min-height:80px;" placeholder="ข้อความที่จะแทรกก่อนเนื้อหาของแต่ละตอน..."></textarea>
+              </div>
+
+              <!-- Append -->
+              <div id="bu-append-opts" class="hidden">
+                <label>ข้อความที่จะเพิ่มที่ท้ายเนื้อหา</label>
+                <textarea id="bu-append-text" class="edit-ta" style="min-height:80px;" placeholder="ข้อความที่จะแทรกหลังเนื้อหาของแต่ละตอน..."></textarea>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;">
@@ -1263,7 +1308,7 @@ async function deleteSelected(){
 }
 
 // ─── Batch Update Published ───────────────────────────────
-let buPriceMode = 'free', buPublishMode = 'publish';
+let buPriceMode = 'free', buPublishMode = 'publish', buContentMode = 'findreplace';
 let isBatchUpdating = false, shouldStopBU = false;
 
 function toggleBatchUpdatePanel(){
@@ -1279,6 +1324,38 @@ function onBatchUpdateToggle(){
   document.getElementById('bu-price-opts').classList.toggle('hidden', !document.getElementById('bu-update-price').checked);
   document.getElementById('bu-publish-opts').classList.toggle('hidden', !document.getElementById('bu-update-publish').checked);
   document.getElementById('bu-datetime-opts').classList.toggle('hidden', !document.getElementById('bu-update-datetime').checked);
+  document.getElementById('bu-content-opts').classList.toggle('hidden', !document.getElementById('bu-update-content').checked);
+}
+
+function selectBatchContent(el, mode){
+  document.querySelectorAll('#bu-content-mode-group .radio-opt').forEach(e => e.classList.remove('checked'));
+  el.classList.add('checked');
+  buContentMode = mode;
+  document.getElementById('bu-findreplace-opts').classList.toggle('hidden', mode !== 'findreplace');
+  document.getElementById('bu-prepend-opts').classList.toggle('hidden', mode !== 'prepend');
+  document.getElementById('bu-append-opts').classList.toggle('hidden', mode !== 'append');
+}
+
+function applyContentTransform(plainText){
+  if(buContentMode === 'findreplace'){
+    const findText = document.getElementById('bu-find-text').value;
+    const replaceText = document.getElementById('bu-replace-text').value;
+    if(!findText) return plainText;
+    if(document.getElementById('bu-find-regex').checked){
+      try { return plainText.replace(new RegExp(findText, 'g'), replaceText); }
+      catch(e){ log('warn','Regex ไม่ถูกต้อง: '+e.message); return plainText; }
+    }
+    return plainText.split(findText).join(replaceText);
+  }
+  if(buContentMode === 'prepend'){
+    const text = document.getElementById('bu-prepend-text').value;
+    return text ? text + '\n' + plainText : plainText;
+  }
+  if(buContentMode === 'append'){
+    const text = document.getElementById('bu-append-text').value;
+    return text ? plainText + '\n' + text : plainText;
+  }
+  return plainText;
 }
 
 function selectBatchPrice(el, mode){
@@ -1302,11 +1379,12 @@ async function batchUpdateSelected(){
   if(!token){ log('err','กรุณากรอก Token'); return; }
   if(!selectedNovelId){ log('err','กรุณาเลือกนิยาย'); return; }
 
-  const updatePrice   = document.getElementById('bu-update-price').checked;
-  const updatePublish = document.getElementById('bu-update-publish').checked;
+  const updatePrice    = document.getElementById('bu-update-price').checked;
+  const updatePublish  = document.getElementById('bu-update-publish').checked;
   const updateDatetime = document.getElementById('bu-update-datetime').checked;
+  const updateContent  = document.getElementById('bu-update-content').checked;
 
-  if(!updatePrice && !updatePublish && !updateDatetime){
+  if(!updatePrice && !updatePublish && !updateDatetime && !updateContent){
     log('warn','กรุณาเลือกอย่างน้อยหนึ่งอย่างที่ต้องการอัปเดต'); return;
   }
 
@@ -1331,7 +1409,7 @@ async function batchUpdateSelected(){
   document.getElementById('bu-progress-wrap').style.display = 'block';
   document.getElementById('bu-progress-bar').style.width = '0%';
 
-  const what = [updatePrice?'ราคา':'', updatePublish?'สถานะ':'', updateDatetime?'เวลา':''].filter(Boolean).join(', ');
+  const what = [updatePrice?'ราคา':'', updatePublish?'สถานะ':'', updateDatetime?'เวลา':'', updateContent?'เนื้อหา':''].filter(Boolean).join(', ');
   log('info', `Batch Update ${sel.length} ตอน · [${what}]`);
 
   let done = 0, failed = 0;
@@ -1350,11 +1428,14 @@ async function batchUpdateSelected(){
         ? (startDt ? (() => { const d = new Date(startDt); d.setMinutes(d.getMinutes() + intervalMin * i); return d.toISOString(); })() : new Date().toISOString())
         : (ch?.novel_chapter_publish_datetime||ch?.chapter_publish_datetime||new Date().toISOString());
 
+      const origHtml = ch?.novel_chapter_content||ch?.chapter_content||'';
+      const newContent = updateContent ? textToHtml(applyContentTransform(htmlToPlain(origHtml))) : origHtml;
+
       const payload = {
         chapter_ID: chId,
         novel_ID: selectedNovelId,
         chapter_title: ch?.novel_chapter_title||ch?.chapter_title||chTitle,
-        chapter_content: ch?.novel_chapter_content||ch?.chapter_content||'',
+        chapter_content: newContent,
         chapter_note: ch?.novel_chapter_note||ch?.chapter_note||'',
         chapter_price: updatePrice ? newPrice : (parseFloat(ch?.novel_chapter_price??ch?.chapter_price??0)||0),
         chapter_publish: updatePublish ? (buPublishMode === 'publish') : (ch?.novel_chapter_publish??ch?.chapter_publish??true),
