@@ -450,6 +450,7 @@
         <button class="btn-sm" onclick="toggleSelectAll()">☑ เลือกทั้งหมด</button>
         <button class="btn-sm danger" onclick="deleteSelected()">🗑 ลบที่เลือก</button>
         <button class="btn-sm primary" onclick="toggleBatchUpdatePanel()">📝 Batch Update</button>
+        <button class="btn-sm primary" onclick="toggleZipUpdatePanel()">📦 Update จาก ZIP</button>
         <span style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-left:auto;" id="manage-count"></span>
       </div>
 
@@ -508,51 +509,6 @@
             </div>
           </div>
 
-          <!-- Content update -->
-          <div>
-            <label class="bu-check-label">
-              <input type="checkbox" id="bu-update-content" onchange="onBatchUpdateToggle()" />
-              อัปเดตเนื้อหา
-            </label>
-            <div id="bu-content-opts" class="bu-sub hidden">
-              <div class="radio-group" id="bu-content-mode-group" style="margin-bottom:10px;">
-                <label class="radio-opt checked" onclick="selectBatchContent(this,'findreplace')"><input type="radio" name="bu-content-mode" checked /> 🔍 Find &amp; Replace</label>
-                <label class="radio-opt" onclick="selectBatchContent(this,'prepend')"><input type="radio" name="bu-content-mode" /> ⬆ เพิ่มหน้า</label>
-                <label class="radio-opt" onclick="selectBatchContent(this,'append')"><input type="radio" name="bu-content-mode" /> ⬇ เพิ่มท้าย</label>
-              </div>
-
-              <!-- Find & Replace -->
-              <div id="bu-findreplace-opts">
-                <div class="form-row" style="margin-bottom:8px;">
-                  <div class="form-group" style="margin-bottom:0;">
-                    <label>ค้นหา (Find)</label>
-                    <input type="text" id="bu-find-text" placeholder="ข้อความที่ต้องการค้นหา" />
-                  </div>
-                  <div class="form-group" style="margin-bottom:0;">
-                    <label>แทนที่ด้วย (Replace)</label>
-                    <input type="text" id="bu-replace-text" placeholder="ว่าง = ลบออก" />
-                  </div>
-                </div>
-                <label class="bu-check-label" style="font-size:12px;color:var(--text-muted);">
-                  <input type="checkbox" id="bu-find-regex" style="accent-color:var(--accent);width:13px;height:13px;" />
-                  ใช้ Regular Expression (Regex)
-                </label>
-              </div>
-
-              <!-- Prepend -->
-              <div id="bu-prepend-opts" class="hidden">
-                <label>ข้อความที่จะเพิ่มที่หน้าเนื้อหา</label>
-                <textarea id="bu-prepend-text" class="edit-ta" style="min-height:80px;" placeholder="ข้อความที่จะแทรกก่อนเนื้อหาของแต่ละตอน..."></textarea>
-              </div>
-
-              <!-- Append -->
-              <div id="bu-append-opts" class="hidden">
-                <label>ข้อความที่จะเพิ่มที่ท้ายเนื้อหา</label>
-                <textarea id="bu-append-text" class="edit-ta" style="min-height:80px;" placeholder="ข้อความที่จะแทรกหลังเนื้อหาของแต่ละตอน..."></textarea>
-              </div>
-            </div>
-          </div>
-
         </div>
 
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;">
@@ -562,6 +518,50 @@
         </div>
         <div class="progress-wrap" id="bu-progress-wrap" style="display:none;margin-top:10px;">
           <div class="progress-bar" id="bu-progress-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- ZIP Update Panel -->
+      <div id="zip-update-panel" class="bu-panel hidden">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">📦 Update เนื้อหาจากไฟล์ ZIP</div>
+
+        <!-- Step 1: Drop zone -->
+        <div id="zup-step1">
+          <div class="drop-zone" id="drop-zone-zup" style="padding:20px;">
+            <input type="file" id="file-input-zup" accept=".zip" onchange="handleUpdateZip(this.files[0])" />
+            <div class="drop-icon">🗜️</div>
+            <div class="drop-label">วาง .zip ที่มีไฟล์ .txt ที่แก้แล้ว</div>
+            <div class="drop-sub">แต่ละไฟล์ .txt = เนื้อหา 1 ตอน · จัดเรียงตามชื่อไฟล์อัตโนมัติ</div>
+          </div>
+        </div>
+
+        <!-- Step 2: Mapping table -->
+        <div id="zup-step2" class="hidden" style="margin-top:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--accent2);">📋 จับคู่ไฟล์ → ตอนที่จะอัปเดต</span>
+            <div style="display:flex;gap:6px;">
+              <button class="btn-sm" onclick="matchZipByName()">🔤 จับคู่ตามชื่อ</button>
+              <button class="btn-sm" onclick="resetZipUpdate()">↺ เลือก ZIP ใหม่</button>
+            </div>
+          </div>
+          <div class="alert alert-info" style="font-size:12px;margin-bottom:8px;">จับคู่อัตโนมัติตามลำดับ · แก้ dropdown ได้ · เลือก "— ข้าม —" เพื่อข้ามไฟล์นั้น</div>
+          <div id="zup-match-table" style="max-height:340px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;"></div>
+
+          <div style="margin-top:10px;">
+            <label class="bu-check-label">
+              <input type="checkbox" id="zup-update-title" style="accent-color:var(--accent);width:15px;height:15px;" />
+              อัปเดตชื่อตอนด้วย (จากชื่อไฟล์ .txt)
+            </label>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+            <button class="btn-sm primary" id="zup-run-btn" onclick="startZipBatchUpdate()">▶ เริ่ม Batch Update</button>
+            <button class="btn-sm danger" id="zup-stop-btn" onclick="stopZipUpdate()" style="display:none;">⏹ หยุด</button>
+            <span id="zup-progress-text" style="font-family:var(--mono);font-size:12px;color:var(--text-muted);"></span>
+          </div>
+          <div class="progress-wrap" id="zup-progress-wrap" style="display:none;margin-top:8px;">
+            <div class="progress-bar" id="zup-progress-bar" style="width:0%"></div>
+          </div>
         </div>
       </div>
 
@@ -1308,7 +1308,7 @@ async function deleteSelected(){
 }
 
 // ─── Batch Update Published ───────────────────────────────
-let buPriceMode = 'free', buPublishMode = 'publish', buContentMode = 'findreplace';
+let buPriceMode = 'free', buPublishMode = 'publish';
 let isBatchUpdating = false, shouldStopBU = false;
 
 function toggleBatchUpdatePanel(){
@@ -1324,38 +1324,6 @@ function onBatchUpdateToggle(){
   document.getElementById('bu-price-opts').classList.toggle('hidden', !document.getElementById('bu-update-price').checked);
   document.getElementById('bu-publish-opts').classList.toggle('hidden', !document.getElementById('bu-update-publish').checked);
   document.getElementById('bu-datetime-opts').classList.toggle('hidden', !document.getElementById('bu-update-datetime').checked);
-  document.getElementById('bu-content-opts').classList.toggle('hidden', !document.getElementById('bu-update-content').checked);
-}
-
-function selectBatchContent(el, mode){
-  document.querySelectorAll('#bu-content-mode-group .radio-opt').forEach(e => e.classList.remove('checked'));
-  el.classList.add('checked');
-  buContentMode = mode;
-  document.getElementById('bu-findreplace-opts').classList.toggle('hidden', mode !== 'findreplace');
-  document.getElementById('bu-prepend-opts').classList.toggle('hidden', mode !== 'prepend');
-  document.getElementById('bu-append-opts').classList.toggle('hidden', mode !== 'append');
-}
-
-function applyContentTransform(plainText){
-  if(buContentMode === 'findreplace'){
-    const findText = document.getElementById('bu-find-text').value;
-    const replaceText = document.getElementById('bu-replace-text').value;
-    if(!findText) return plainText;
-    if(document.getElementById('bu-find-regex').checked){
-      try { return plainText.replace(new RegExp(findText, 'g'), replaceText); }
-      catch(e){ log('warn','Regex ไม่ถูกต้อง: '+e.message); return plainText; }
-    }
-    return plainText.split(findText).join(replaceText);
-  }
-  if(buContentMode === 'prepend'){
-    const text = document.getElementById('bu-prepend-text').value;
-    return text ? text + '\n' + plainText : plainText;
-  }
-  if(buContentMode === 'append'){
-    const text = document.getElementById('bu-append-text').value;
-    return text ? plainText + '\n' + text : plainText;
-  }
-  return plainText;
 }
 
 function selectBatchPrice(el, mode){
@@ -1382,9 +1350,8 @@ async function batchUpdateSelected(){
   const updatePrice    = document.getElementById('bu-update-price').checked;
   const updatePublish  = document.getElementById('bu-update-publish').checked;
   const updateDatetime = document.getElementById('bu-update-datetime').checked;
-  const updateContent  = document.getElementById('bu-update-content').checked;
 
-  if(!updatePrice && !updatePublish && !updateDatetime && !updateContent){
+  if(!updatePrice && !updatePublish && !updateDatetime){
     log('warn','กรุณาเลือกอย่างน้อยหนึ่งอย่างที่ต้องการอัปเดต'); return;
   }
 
@@ -1409,7 +1376,7 @@ async function batchUpdateSelected(){
   document.getElementById('bu-progress-wrap').style.display = 'block';
   document.getElementById('bu-progress-bar').style.width = '0%';
 
-  const what = [updatePrice?'ราคา':'', updatePublish?'สถานะ':'', updateDatetime?'เวลา':'', updateContent?'เนื้อหา':''].filter(Boolean).join(', ');
+  const what = [updatePrice?'ราคา':'', updatePublish?'สถานะ':'', updateDatetime?'เวลา':''].filter(Boolean).join(', ');
   log('info', `Batch Update ${sel.length} ตอน · [${what}]`);
 
   let done = 0, failed = 0;
@@ -1428,14 +1395,11 @@ async function batchUpdateSelected(){
         ? (startDt ? (() => { const d = new Date(startDt); d.setMinutes(d.getMinutes() + intervalMin * i); return d.toISOString(); })() : new Date().toISOString())
         : (ch?.novel_chapter_publish_datetime||ch?.chapter_publish_datetime||new Date().toISOString());
 
-      const origHtml = ch?.novel_chapter_content||ch?.chapter_content||'';
-      const newContent = updateContent ? textToHtml(applyContentTransform(htmlToPlain(origHtml))) : origHtml;
-
       const payload = {
         chapter_ID: chId,
         novel_ID: selectedNovelId,
         chapter_title: ch?.novel_chapter_title||ch?.chapter_title||chTitle,
-        chapter_content: newContent,
+        chapter_content: ch?.novel_chapter_content||ch?.chapter_content||'',
         chapter_note: ch?.novel_chapter_note||ch?.chapter_note||'',
         chapter_price: updatePrice ? newPrice : (parseFloat(ch?.novel_chapter_price??ch?.chapter_price??0)||0),
         chapter_publish: updatePublish ? (buPublishMode === 'publish') : (ch?.novel_chapter_publish??ch?.chapter_publish??true),
@@ -1467,6 +1431,164 @@ async function batchUpdateSelected(){
   runBtn.disabled = false;
   document.getElementById('bu-stop-btn').style.display = 'none';
   document.getElementById('bu-progress-text').textContent = '';
+}
+
+// ─── ZIP Batch Update ─────────────────────────────────────
+let zipUpdateFiles = [];
+let isZipUpdating = false, shouldStopZU = false;
+
+function toggleZipUpdatePanel(){
+  const panel = document.getElementById('zip-update-panel');
+  panel.classList.toggle('hidden');
+  if(!publishedChapters.length && !panel.classList.contains('hidden'))
+    log('warn','กรุณากด "โหลดรายการตอนที่ลงแล้ว" ก่อน เพื่อให้ dropdown มีรายการ');
+}
+
+async function handleUpdateZip(file){
+  if(!file) return;
+  log('info','กำลังแตก ZIP: '+file.name);
+  try {
+    const buf = await file.arrayBuffer();
+    const entries = await unzipEntries(buf);
+    const txts = entries.filter(e=>e.name.toLowerCase().endsWith('.txt')&&!e.name.startsWith('__MACOSX'));
+    txts.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+    if(!txts.length){ log('warn','ไม่พบไฟล์ .txt ใน ZIP'); return; }
+    zipUpdateFiles = txts.map(e=>({
+      filename: e.name.replace(/^.*[\\/]/,''),
+      title: e.name.replace(/^.*[\\/]/,'').replace(/\.txt$/i,''),
+      content: e.text
+    }));
+    log('ok',`แตก ZIP: ${zipUpdateFiles.length} ไฟล์`);
+    renderZipMatchTable();
+    document.getElementById('zup-step2').classList.remove('hidden');
+  } catch(e){ log('err','แตก ZIP ล้มเหลว: '+e.message); }
+}
+
+function renderZipMatchTable(){
+  const table = document.getElementById('zup-match-table');
+  table.innerHTML = '';
+  zipUpdateFiles.forEach((f,i)=>{
+    const opts = ['<option value="">— ข้าม —</option>',
+      ...publishedChapters.map((ch,ci)=>{
+        const id = ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
+        const title = ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
+        const sel = ci===i?'selected':'';
+        return `<option value="${escHtml(String(id))}" ${sel}>#${ci+1} · ${escHtml(title)}</option>`;
+      })
+    ].join('');
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface3);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;';
+    row.innerHTML=`
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-muted);background:var(--surface2);border-radius:4px;padding:2px 7px;flex-shrink:0;">#${i+1}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(f.filename)}">${escHtml(f.title)}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);">${f.content.length.toLocaleString()} ตัวอักษร</div>
+      </div>
+      <span style="font-family:var(--mono);font-size:16px;color:var(--accent);flex-shrink:0;">→</span>
+      <select id="zup-map-${i}" style="flex:1.5;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;font-family:var(--sans);outline:none;">${opts}</select>`;
+    table.appendChild(row);
+  });
+}
+
+function matchZipByName(){
+  zipUpdateFiles.forEach((f,i)=>{
+    const sel = document.getElementById('zup-map-'+i);
+    if(!sel) return;
+    const fname = f.title.toLowerCase();
+    const best = publishedChapters.find(ch=>{
+      const t=(ch.novel_chapter_title||ch.chapter_title||ch.title||'').toLowerCase();
+      return t===fname||t.includes(fname)||fname.includes(t);
+    });
+    if(best){
+      const id=String(best.novel_chapter_ID||best.chapter_ID||best.id||best._id);
+      const opt=Array.from(sel.options).find(o=>o.value===id);
+      if(opt) sel.value=id;
+    }
+  });
+  log('info','จับคู่ตามชื่อแล้ว · ตรวจสอบ mapping ก่อนรัน');
+}
+
+function resetZipUpdate(){
+  zipUpdateFiles=[];
+  document.getElementById('zup-step2').classList.add('hidden');
+  document.getElementById('zup-match-table').innerHTML='';
+  const fi=document.getElementById('file-input-zup'); if(fi) fi.value='';
+  document.getElementById('zup-progress-bar').style.width='0%';
+  document.getElementById('zup-progress-wrap').style.display='none';
+  document.getElementById('zup-progress-text').textContent='';
+}
+
+function stopZipUpdate(){ shouldStopZU=true; }
+
+async function startZipBatchUpdate(){
+  if(isZipUpdating) return;
+  const token=getToken(); if(!token){log('err','กรุณากรอก Token');return;}
+  if(!selectedNovelId){log('err','กรุณาเลือกนิยาย');return;}
+  if(!zipUpdateFiles.length){log('warn','ยังไม่ได้โหลด ZIP');return;}
+
+  const mapping=zipUpdateFiles.map((f,i)=>({
+    file:f, chId:document.getElementById('zup-map-'+i)?.value||''
+  })).filter(m=>m.chId);
+
+  if(!mapping.length){log('warn','ไม่มีตอนที่จะอัปเดต (ทุกไฟล์ถูกตั้งเป็น "ข้าม")');return;}
+
+  const updateTitle=document.getElementById('zup-update-title').checked;
+
+  isZipUpdating=true; shouldStopZU=false;
+  const runBtn=document.getElementById('zup-run-btn');
+  runBtn.disabled=true;
+  document.getElementById('zup-stop-btn').style.display='inline-block';
+  document.getElementById('zup-progress-wrap').style.display='block';
+  document.getElementById('zup-progress-bar').style.width='0%';
+
+  log('info',`Batch Update จาก ZIP: ${mapping.length} ตอน${updateTitle?' · รวมชื่อ':''}`);
+
+  let done=0, failed=0;
+  for(let i=0;i<mapping.length;i++){
+    if(shouldStopZU){log('warn','หยุด Batch Update โดยผู้ใช้');break;}
+    const {file,chId}=mapping[i];
+    document.getElementById('zup-progress-text').textContent=`${i+1}/${mapping.length} · ${file.title}`;
+    try {
+      const r=await apiGet(`https://api-writer.readrealm.co/writer/novels/chapters/getChapter?chapter_ID=${chId}&novel_ID=${selectedNovelId}`);
+      const data=await r.json();
+      const ch=data?.data||data?.chapter||data;
+      const payload={
+        chapter_ID: chId,
+        novel_ID: selectedNovelId,
+        chapter_title: updateTitle ? file.title : (ch?.novel_chapter_title||ch?.chapter_title||file.title),
+        chapter_content: textToHtml(file.content),
+        chapter_note: ch?.novel_chapter_note||ch?.chapter_note||'',
+        chapter_price: parseFloat(ch?.novel_chapter_price??ch?.chapter_price??0)||0,
+        chapter_publish: ch?.novel_chapter_publish??ch?.chapter_publish??true,
+        chapter_publish_datetime: ch?.novel_chapter_publish_datetime||ch?.chapter_publish_datetime||new Date().toISOString()
+      };
+      const ur=await apiPut('https://api-writer.readrealm.co/writer/novels/chapters/chapterUpdate',payload);
+      if(ur.ok){
+        done++;
+        log('ok',`[${done}/${mapping.length}] ✓ ${file.title}`);
+        if(updateTitle){
+          const ci=publishedChapters.find(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(chId));
+          if(ci){ci.novel_chapter_title=file.title;ci.chapter_title=file.title;}
+        }
+      } else {
+        const e=await ur.json().catch(()=>({}));
+        failed++;
+        log('err',`[${i+1}] ✗ ${file.title} → ${ur.status}: ${e?.message||''}`);
+      }
+    } catch(e){
+      failed++;
+      log('err',`[${i+1}] ✗ ${file.title} → ${e.message}`);
+    }
+    document.getElementById('zup-progress-bar').style.width=((i+1)/mapping.length*100)+'%';
+    if(i<mapping.length-1&&!shouldStopZU) await sleep(300);
+  }
+
+  log('info',`Batch Update เสร็จสิ้น · สำเร็จ ${done} · ล้มเหลว ${failed}`);
+  if(done>0) renderManageList();
+  isZipUpdating=false;
+  runBtn.disabled=false;
+  document.getElementById('zup-stop-btn').style.display='none';
+  document.getElementById('zup-progress-text').textContent='';
 }
 
 async function openEditPublished(id,title){
@@ -1664,7 +1786,7 @@ function log(type,msg){
 })();
 
 // ─── Drag & drop ──────────────────────────────────────────
-['drop-zone','drop-zone-delim','drop-zone-zip','drop-zone-epub'].forEach(id=>{
+['drop-zone','drop-zone-delim','drop-zone-zip','drop-zone-epub','drop-zone-zup'].forEach(id=>{
   const el=document.getElementById(id); if(!el)return;
   el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('dragging');});
   el.addEventListener('dragleave',()=>el.classList.remove('dragging'));
@@ -1674,6 +1796,7 @@ function log(type,msg){
     if(id==='drop-zone')handleFiles(files);
     else if(id==='drop-zone-zip')handleZip(files[0]);
     else if(id==='drop-zone-epub')handleEpub(files[0]);
+    else if(id==='drop-zone-zup')handleUpdateZip(files[0]);
     else handleDelimFile(files[0]);
   });
 });
