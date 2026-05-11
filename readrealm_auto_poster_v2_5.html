@@ -451,6 +451,7 @@
         <button class="btn-sm danger" onclick="deleteSelected()">🗑 ลบที่เลือก</button>
         <button class="btn-sm primary" onclick="toggleBatchUpdatePanel()">📝 Batch Update</button>
         <button class="btn-sm primary" onclick="toggleZipUpdatePanel()">📦 Update จาก ZIP</button>
+        <button class="btn-sm primary" onclick="toggleReorderPanel()">🔀 สลับลำดับ</button>
         <span style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-left:auto;" id="manage-count"></span>
       </div>
 
@@ -563,6 +564,35 @@
             <div class="progress-bar" id="zup-progress-bar" style="width:0%"></div>
           </div>
         </div>
+      </div>
+
+      <!-- Reorder Panel -->
+      <div id="reorder-panel" class="bu-panel hidden">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">🔀 สลับลำดับตอน</div>
+
+        <!-- Swap any two -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">สลับ 2 ตอนใดก็ได้</div>
+          <div class="form-row" style="margin-bottom:8px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>ตอนที่ 1</label>
+              <select id="swap-ch1" style="font-family:var(--sans);font-size:13px;"><option value="">— เลือกตอน —</option></select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>ตอนที่ 2</label>
+              <select id="swap-ch2" style="font-family:var(--sans);font-size:13px;"><option value="">— เลือกตอน —</option></select>
+            </div>
+          </div>
+          <button class="btn-sm primary" onclick="swapTwoChapters()">↕ สลับ 2 ตอนนี้</button>
+        </div>
+
+        <hr class="divider" style="margin:10px 0;">
+
+        <!-- Arrow mode -->
+        <label class="bu-check-label">
+          <input type="checkbox" id="reorder-arrows-mode" onchange="toggleReorderArrows()" style="accent-color:var(--accent);width:15px;height:15px;" />
+          แสดงปุ่ม ↑↓ ในรายการตอน (เลื่อนทีละขั้น)
+        </label>
       </div>
 
       <div id="manage-list"></div>
@@ -1263,16 +1293,21 @@ async function loadPublishedChapters(){
 function renderManageList(){
   const list=document.getElementById('manage-list'); list.innerHTML='';
   if(!publishedChapters.length){list.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);padding:16px;text-align:center;">ไม่พบตอน</div>';return;}
+  const arrows=isReorderMode;
   publishedChapters.forEach((ch,i)=>{
     const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
     const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
     const price=ch.novel_chapter_price!=null?(ch.novel_chapter_price===0?'ฟรี':ch.novel_chapter_price+' เหรียญ'):
                 ch.chapter_price!=null?(ch.chapter_price===0?'ฟรี':ch.chapter_price+' เหรียญ'):'';
+    const arrowBtns=arrows?`
+      <button class="ch-btn" onclick="moveChapter('${escHtml(String(id))}',-1)" title="เลื่อนขึ้น" ${i===0?'disabled':''}>↑</button>
+      <button class="ch-btn" onclick="moveChapter('${escHtml(String(id))}',1)" title="เลื่อนลง" ${i===publishedChapters.length-1?'disabled':''}>↓</button>`:'';
     const div=document.createElement('div'); div.className='manage-item';
     div.innerHTML=`<input type="checkbox" class="manage-check" data-id="${escHtml(String(id))}" data-idx="${i}" onchange="onManageCheck(event,${i})"/>
       <span class="manage-item-num">#${i+1}</span>
       <span class="manage-item-title" title="${escHtml(title)}">${escHtml(title)}</span>
       <span class="manage-item-meta">${price}</span>
+      ${arrowBtns}
       <button class="ch-btn" onclick="openEditPublished('${escHtml(String(id))}','${escHtml(title)}')" title="แก้ไข">✏️</button>`;
     list.appendChild(div);
   });
@@ -1431,6 +1466,72 @@ async function batchUpdateSelected(){
   runBtn.disabled = false;
   document.getElementById('bu-stop-btn').style.display = 'none';
   document.getElementById('bu-progress-text').textContent = '';
+}
+
+// ─── Reorder / Swap Chapters ─────────────────────────────
+let isReorderMode = false;
+
+function toggleReorderPanel(){
+  const panel = document.getElementById('reorder-panel');
+  panel.classList.toggle('hidden');
+  if(!panel.classList.contains('hidden')) populateSwapSelects();
+}
+
+function populateSwapSelects(){
+  const opts = ['<option value="">— เลือกตอน —</option>',
+    ...publishedChapters.map((ch,i)=>{
+      const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
+      const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
+      return `<option value="${escHtml(String(id))}">#${i+1} · ${escHtml(title)}</option>`;
+    })
+  ].join('');
+  document.getElementById('swap-ch1').innerHTML = opts;
+  document.getElementById('swap-ch2').innerHTML = opts;
+}
+
+async function swapTwoChapters(){
+  const id1 = document.getElementById('swap-ch1').value;
+  const id2 = document.getElementById('swap-ch2').value;
+  if(!id1||!id2){ log('warn','กรุณาเลือกทั้ง 2 ตอน'); return; }
+  if(id1===id2){ log('warn','กรุณาเลือกตอนที่ต่างกัน'); return; }
+  await doChapterSwitch(id1, id2);
+}
+
+function toggleReorderArrows(){
+  isReorderMode = document.getElementById('reorder-arrows-mode').checked;
+  renderManageList();
+}
+
+async function moveChapter(id, dir){
+  const idx = publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id));
+  const targetIdx = idx + dir;
+  if(idx<0||targetIdx<0||targetIdx>=publishedChapters.length) return;
+  const targetId = String(publishedChapters[targetIdx].novel_chapter_ID||publishedChapters[targetIdx].chapter_ID||publishedChapters[targetIdx].id||publishedChapters[targetIdx]._id);
+  await doChapterSwitch(id, targetId);
+}
+
+async function doChapterSwitch(id1, id2){
+  try {
+    const r = await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterSwitch',{
+      chapter_ID_1: String(id1),
+      chapter_ID_2: String(id2),
+      novel_ID: selectedNovelId
+    });
+    if(r.ok){
+      const i1=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id1));
+      const i2=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id2));
+      if(i1>=0&&i2>=0)[publishedChapters[i1],publishedChapters[i2]]=[publishedChapters[i2],publishedChapters[i1]];
+      renderManageList();
+      const panel=document.getElementById('reorder-panel');
+      if(panel&&!panel.classList.contains('hidden')) populateSwapSelects();
+      const t1=publishedChapters[i2]?.novel_chapter_title||publishedChapters[i2]?.chapter_title||id1;
+      const t2=publishedChapters[i1]?.novel_chapter_title||publishedChapters[i1]?.chapter_title||id2;
+      log('ok',`✓ สลับลำดับ: "${t1}" ↔ "${t2}"`);
+    } else {
+      const e=await r.json().catch(()=>({}));
+      log('err',`สลับล้มเหลว: ${r.status} · ${e?.message||''}`);
+    }
+  } catch(e){ log('err','สลับล้มเหลว: '+e.message); }
 }
 
 // ─── ZIP Batch Update ─────────────────────────────────────
