@@ -588,6 +588,24 @@
 
         <hr class="divider" style="margin:10px 0;">
 
+        <!-- Move to position -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">ย้ายตอนไปตำแหน่งที่กำหนด</div>
+          <div class="form-row" style="margin-bottom:8px;align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;flex:1.2;">
+              <label>ตอนที่จะย้าย</label>
+              <select id="move-src" style="font-family:var(--sans);font-size:13px;"><option value="">— เลือกตอน —</option></select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;flex:1.2;">
+              <label>วางหลังจาก</label>
+              <select id="move-after" style="font-family:var(--sans);font-size:13px;"><option value="__TOP__">⬆ อยู่บนสุด (ตำแหน่งที่ 1)</option></select>
+            </div>
+          </div>
+          <button class="btn-sm primary" onclick="moveToPosition()">📌 ย้ายไปตำแหน่งนี้</button>
+        </div>
+
+        <hr class="divider" style="margin:10px 0;">
+
         <!-- Arrow mode -->
         <label class="bu-check-label" style="margin-bottom:10px;">
           <input type="checkbox" id="reorder-arrows-mode" onchange="toggleReorderArrows()" style="accent-color:var(--accent);width:15px;height:15px;" />
@@ -1487,15 +1505,47 @@ function toggleReorderPanel(){
 }
 
 function populateSwapSelects(){
-  const opts = ['<option value="">— เลือกตอน —</option>',
+  const chOpts = publishedChapters.map((ch,i)=>{
+    const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
+    const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
+    return `<option value="${escHtml(String(id))}">#${i+1} · ${escHtml(title)}</option>`;
+  });
+  const blankOpt = '<option value="">— เลือกตอน —</option>';
+  document.getElementById('swap-ch1').innerHTML = blankOpt + chOpts.join('');
+  document.getElementById('swap-ch2').innerHTML = blankOpt + chOpts.join('');
+  document.getElementById('move-src').innerHTML = blankOpt + chOpts.join('');
+  // "after" select: top sentinel + all chapters as "วางหลัง #N"
+  const afterOpts = ['<option value="__TOP__">⬆ อยู่บนสุด (ตำแหน่งที่ 1)</option>',
     ...publishedChapters.map((ch,i)=>{
       const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
       const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
-      return `<option value="${escHtml(String(id))}">#${i+1} · ${escHtml(title)}</option>`;
+      return `<option value="${escHtml(String(id))}">วางหลัง #${i+1} · ${escHtml(title)}</option>`;
     })
   ].join('');
-  document.getElementById('swap-ch1').innerHTML = opts;
-  document.getElementById('swap-ch2').innerHTML = opts;
+  document.getElementById('move-after').innerHTML = afterOpts;
+}
+
+function moveToPosition(){
+  const srcId = document.getElementById('move-src').value;
+  const afterId = document.getElementById('move-after').value;
+  if(!srcId){ log('warn','กรุณาเลือกตอนที่จะย้าย'); return; }
+  const srcIdx = publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(srcId));
+  if(srcIdx<0) return;
+  if(!reorderPending) originalChapterOrder = [...publishedChapters];
+  const [moved] = publishedChapters.splice(srcIdx, 1);
+  if(afterId==='__TOP__'){
+    publishedChapters.unshift(moved);
+  } else {
+    // find destination after removal (index may have shifted)
+    const destIdx = publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(afterId));
+    if(destIdx<0){ publishedChapters.push(moved); }
+    else { publishedChapters.splice(destIdx+1, 0, moved); }
+  }
+  const title = moved.novel_chapter_title||moved.chapter_title||moved.title||srcId;
+  markReorderPending();
+  renderManageList();
+  populateSwapSelects();
+  log('info',`📌 ย้าย "${title}" ไปตำแหน่งใหม่แล้ว · รอบันทึก`);
 }
 
 function swapTwoChapters(){
