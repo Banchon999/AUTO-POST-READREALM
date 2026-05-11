@@ -1745,12 +1745,15 @@ function apiPut(url,body){return fetch(url,{method:'PUT',headers:{'authorization
 function textToHtml(text){
   return text.split('\n').map(line=>{
     const t=line.trim();
-    return t?`<p>${escHtml(t)}</p>`:'<p>&nbsp;</p>';
+    if(!t) return '<p>&nbsp;</p>';
+    if(/^\*{3,}$|^\* \* \*$/.test(t)) return '<hr>';
+    return `<p>${escHtml(t)}</p>`;
   }).join('')||'<p></p>';
 }
 
 function htmlToPlain(html){
   return html
+    .replace(/<hr\s*\/?>/gi,'***')
     .replace(/<p>&nbsp;<\/p>/gi,'\n')
     .replace(/<\/p>/gi,'\n').replace(/<p>/gi,'')
     .replace(/<br\s*\/?>/gi,'\n')
