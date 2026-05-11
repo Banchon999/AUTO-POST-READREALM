@@ -160,6 +160,11 @@
   /* Manage */
   .manage-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
   #manage-list { max-height: 50vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .bu-panel { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .bu-option-row { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+  .bu-check-label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; user-select: none; }
+  .bu-check-label input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
+  .bu-sub { margin-left: 24px; margin-top: 6px; }
   .manage-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
   .manage-item:hover { border-color: var(--border-bright); }
   .manage-item-title { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -217,7 +222,7 @@
       <h1>ReadRealm Auto Poster</h1>
       <p>ระบบลงนิยายอัตโนมัติ · readrealm.co</p>
     </div>
-    <div class="version-badge">v2.5</div>
+    <div class="version-badge">v2.6</div>
   </div>
 
   <!-- 01 Auth -->
@@ -444,8 +449,177 @@
       <div class="manage-toolbar">
         <button class="btn-sm" onclick="toggleSelectAll()">☑ เลือกทั้งหมด</button>
         <button class="btn-sm danger" onclick="deleteSelected()">🗑 ลบที่เลือก</button>
+        <button class="btn-sm primary" onclick="toggleBatchUpdatePanel()">📝 Batch Update</button>
+        <button class="btn-sm primary" onclick="toggleZipUpdatePanel()">📦 Update จาก ZIP</button>
+        <button class="btn-sm primary" onclick="toggleReorderPanel()">🔀 สลับลำดับ</button>
         <span style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-left:auto;" id="manage-count"></span>
       </div>
+
+      <!-- Batch Update Panel -->
+      <div id="batch-update-panel" class="bu-panel hidden">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">📝 Batch Update ตอนที่เลือก</div>
+        <div class="bu-option-row">
+
+          <!-- Price -->
+          <div>
+            <label class="bu-check-label">
+              <input type="checkbox" id="bu-update-price" onchange="onBatchUpdateToggle()" />
+              อัปเดตราคา
+            </label>
+            <div id="bu-price-opts" class="bu-sub hidden">
+              <div class="radio-group" id="bu-price-group" style="margin-bottom:8px;">
+                <label class="radio-opt checked" onclick="selectBatchPrice(this,'free')"><input type="radio" name="bu-price" checked /> อ่านฟรี</label>
+                <label class="radio-opt" onclick="selectBatchPrice(this,'custom')"><input type="radio" name="bu-price" /> กำหนดเอง</label>
+              </div>
+              <input type="number" id="bu-price-val" value="1" min="0" step="0.01" class="hidden" style="width:120px;" placeholder="จำนวนเหรียญ" />
+            </div>
+          </div>
+
+          <!-- Publish status -->
+          <div>
+            <label class="bu-check-label">
+              <input type="checkbox" id="bu-update-publish" onchange="onBatchUpdateToggle()" />
+              อัปเดตสถานะเผยแพร่
+            </label>
+            <div id="bu-publish-opts" class="bu-sub hidden">
+              <div class="radio-group" id="bu-publish-group">
+                <label class="radio-opt checked" onclick="selectBatchPublish(this,'publish')"><input type="radio" name="bu-pub" checked /> เผยแพร่</label>
+                <label class="radio-opt" onclick="selectBatchPublish(this,'draft')"><input type="radio" name="bu-pub" /> ฉบับร่าง</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reschedule datetime -->
+          <div>
+            <label class="bu-check-label">
+              <input type="checkbox" id="bu-update-datetime" onchange="onBatchUpdateToggle()" />
+              ตั้งเวลาเผยแพร่ใหม่
+            </label>
+            <div id="bu-datetime-opts" class="bu-sub hidden">
+              <div class="form-row">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>เวลาเริ่มต้น (ตอนแรกที่เลือก)</label>
+                  <input type="datetime-local" id="bu-start-datetime" />
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>Interval ระหว่างตอน (นาที)</label>
+                  <input type="number" id="bu-interval" value="60" min="0" />
+                </div>
+              </div>
+              <div class="alert alert-info mt8" style="font-size:12px;">Interval จะเพิ่มให้ทีละตอนตามลำดับที่เลือก</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+          <button class="btn-sm primary" id="bu-run-btn" onclick="batchUpdateSelected()">▶ เริ่ม Batch Update</button>
+          <button class="btn-sm danger" id="bu-stop-btn" onclick="stopBatchUpdate()" style="display:none;">⏹ หยุด</button>
+          <span id="bu-progress-text" style="font-family:var(--mono);font-size:12px;color:var(--text-muted);"></span>
+        </div>
+        <div class="progress-wrap" id="bu-progress-wrap" style="display:none;margin-top:10px;">
+          <div class="progress-bar" id="bu-progress-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- ZIP Update Panel -->
+      <div id="zip-update-panel" class="bu-panel hidden">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">📦 Update เนื้อหาจากไฟล์ ZIP</div>
+
+        <!-- Step 1: Drop zone -->
+        <div id="zup-step1">
+          <div class="drop-zone" id="drop-zone-zup" style="padding:20px;">
+            <input type="file" id="file-input-zup" accept=".zip" onchange="handleUpdateZip(this.files[0])" />
+            <div class="drop-icon">🗜️</div>
+            <div class="drop-label">วาง .zip ที่มีไฟล์ .txt ที่แก้แล้ว</div>
+            <div class="drop-sub">แต่ละไฟล์ .txt = เนื้อหา 1 ตอน · จัดเรียงตามชื่อไฟล์อัตโนมัติ</div>
+          </div>
+        </div>
+
+        <!-- Step 2: Mapping table -->
+        <div id="zup-step2" class="hidden" style="margin-top:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--accent2);">📋 จับคู่ไฟล์ → ตอนที่จะอัปเดต</span>
+            <div style="display:flex;gap:6px;">
+              <button class="btn-sm" onclick="matchZipByName()">🔤 จับคู่ตามชื่อ</button>
+              <button class="btn-sm" onclick="resetZipUpdate()">↺ เลือก ZIP ใหม่</button>
+            </div>
+          </div>
+          <div class="alert alert-info" style="font-size:12px;margin-bottom:8px;">จับคู่อัตโนมัติตามลำดับ · แก้ dropdown ได้ · เลือก "— ข้าม —" เพื่อข้ามไฟล์นั้น</div>
+          <div id="zup-match-table" style="max-height:340px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;"></div>
+
+          <div style="margin-top:10px;">
+            <label class="bu-check-label">
+              <input type="checkbox" id="zup-update-title" style="accent-color:var(--accent);width:15px;height:15px;" />
+              อัปเดตชื่อตอนด้วย (จากชื่อไฟล์ .txt)
+            </label>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+            <button class="btn-sm primary" id="zup-run-btn" onclick="startZipBatchUpdate()">▶ เริ่ม Batch Update</button>
+            <button class="btn-sm danger" id="zup-stop-btn" onclick="stopZipUpdate()" style="display:none;">⏹ หยุด</button>
+            <span id="zup-progress-text" style="font-family:var(--mono);font-size:12px;color:var(--text-muted);"></span>
+          </div>
+          <div class="progress-wrap" id="zup-progress-wrap" style="display:none;margin-top:8px;">
+            <div class="progress-bar" id="zup-progress-bar" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reorder Panel -->
+      <div id="reorder-panel" class="bu-panel hidden">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">🔀 สลับลำดับตอน</div>
+
+        <!-- Quick swap any two -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">สลับ 2 ตอนใดก็ได้</div>
+          <div class="form-row" style="margin-bottom:8px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>ตอนที่ 1</label>
+              <select id="swap-ch1" style="font-family:var(--sans);font-size:13px;"><option value="">— เลือกตอน —</option></select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>ตอนที่ 2</label>
+              <select id="swap-ch2" style="font-family:var(--sans);font-size:13px;"><option value="">— เลือกตอน —</option></select>
+            </div>
+          </div>
+          <button class="btn-sm primary" onclick="swapTwoChapters()">↕ สลับ 2 ตอนนี้</button>
+        </div>
+
+        <hr class="divider" style="margin:10px 0;">
+
+        <!-- Move to position -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">ย้ายตอนไปตำแหน่งที่กำหนด</div>
+          <div class="form-row" style="margin-bottom:8px;align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;flex:1.2;">
+              <label>ตอนที่จะย้าย</label>
+              <select id="move-src" style="font-family:var(--sans);font-size:13px;"><option value="">— เลือกตอน —</option></select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;flex:1.2;">
+              <label>วางหลังจาก</label>
+              <select id="move-after" style="font-family:var(--sans);font-size:13px;"><option value="__TOP__">⬆ อยู่บนสุด (ตำแหน่งที่ 1)</option></select>
+            </div>
+          </div>
+          <button class="btn-sm primary" onclick="moveToPosition()">📌 ย้ายไปตำแหน่งนี้</button>
+        </div>
+
+        <hr class="divider" style="margin:10px 0;">
+
+        <!-- Arrow mode -->
+        <label class="bu-check-label" style="margin-bottom:10px;">
+          <input type="checkbox" id="reorder-arrows-mode" onchange="toggleReorderArrows()" style="accent-color:var(--accent);width:15px;height:15px;" />
+          แสดงปุ่ม ↑↓ ในรายการ — จัดเรียงก่อน แล้วกด "บันทึกลำดับ"
+        </label>
+
+        <!-- Save bar (shown when pending) -->
+        <div id="reorder-save-bar" class="hidden" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--yellow-dim);border:1px solid rgba(234,179,8,0.3);border-radius:8px;">
+          <span style="font-family:var(--mono);font-size:12px;color:var(--yellow);flex:1;" id="reorder-pending-text">มีการเปลี่ยนลำดับ</span>
+          <button class="btn-sm primary" onclick="saveChapterOrder()">💾 บันทึกลำดับ</button>
+          <button class="btn-sm" onclick="cancelReorder()">↩ ยกเลิก</button>
+        </div>
+      </div>
+
       <div id="manage-list"></div>
     </div>
   </div>
@@ -1144,16 +1318,21 @@ async function loadPublishedChapters(){
 function renderManageList(){
   const list=document.getElementById('manage-list'); list.innerHTML='';
   if(!publishedChapters.length){list.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);padding:16px;text-align:center;">ไม่พบตอน</div>';return;}
+  const arrows=isReorderMode;
   publishedChapters.forEach((ch,i)=>{
     const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
     const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
     const price=ch.novel_chapter_price!=null?(ch.novel_chapter_price===0?'ฟรี':ch.novel_chapter_price+' เหรียญ'):
                 ch.chapter_price!=null?(ch.chapter_price===0?'ฟรี':ch.chapter_price+' เหรียญ'):'';
+    const arrowBtns=arrows?`
+      <button class="ch-btn" onclick="moveChapter('${escHtml(String(id))}',-1)" title="เลื่อนขึ้น" ${i===0?'disabled':''}>↑</button>
+      <button class="ch-btn" onclick="moveChapter('${escHtml(String(id))}',1)" title="เลื่อนลง" ${i===publishedChapters.length-1?'disabled':''}>↓</button>`:'';
     const div=document.createElement('div'); div.className='manage-item';
     div.innerHTML=`<input type="checkbox" class="manage-check" data-id="${escHtml(String(id))}" data-idx="${i}" onchange="onManageCheck(event,${i})"/>
       <span class="manage-item-num">#${i+1}</span>
       <span class="manage-item-title" title="${escHtml(title)}">${escHtml(title)}</span>
       <span class="manage-item-meta">${price}</span>
+      ${arrowBtns}
       <button class="ch-btn" onclick="openEditPublished('${escHtml(String(id))}','${escHtml(title)}')" title="แก้ไข">✏️</button>`;
     list.appendChild(div);
   });
@@ -1186,6 +1365,421 @@ async function deleteSelected(){
       renderManageList();
     } else {const e=await r.json().catch(()=>({}));log('err',`ลบล้มเหลว: ${r.status} · ${e?.message||''}`);}
   } catch(e){log('err','ลบล้มเหลว: '+e.message);}
+}
+
+// ─── Batch Update Published ───────────────────────────────
+let buPriceMode = 'free', buPublishMode = 'publish';
+let isBatchUpdating = false, shouldStopBU = false;
+
+function toggleBatchUpdatePanel(){
+  const panel = document.getElementById('batch-update-panel');
+  panel.classList.toggle('hidden');
+  if(!panel.classList.contains('hidden')){
+    const d = new Date(); d.setHours(d.getHours()+1);
+    document.getElementById('bu-start-datetime').value = d.toISOString().slice(0,16);
+  }
+}
+
+function onBatchUpdateToggle(){
+  document.getElementById('bu-price-opts').classList.toggle('hidden', !document.getElementById('bu-update-price').checked);
+  document.getElementById('bu-publish-opts').classList.toggle('hidden', !document.getElementById('bu-update-publish').checked);
+  document.getElementById('bu-datetime-opts').classList.toggle('hidden', !document.getElementById('bu-update-datetime').checked);
+}
+
+function selectBatchPrice(el, mode){
+  document.querySelectorAll('#bu-price-group .radio-opt').forEach(e => e.classList.remove('checked'));
+  el.classList.add('checked');
+  buPriceMode = mode;
+  document.getElementById('bu-price-val').classList.toggle('hidden', mode !== 'custom');
+}
+
+function selectBatchPublish(el, mode){
+  document.querySelectorAll('#bu-publish-group .radio-opt').forEach(e => e.classList.remove('checked'));
+  el.classList.add('checked');
+  buPublishMode = mode;
+}
+
+function stopBatchUpdate(){ shouldStopBU = true; }
+
+async function batchUpdateSelected(){
+  if(isBatchUpdating) return;
+  const token = getToken();
+  if(!token){ log('err','กรุณากรอก Token'); return; }
+  if(!selectedNovelId){ log('err','กรุณาเลือกนิยาย'); return; }
+
+  const updatePrice    = document.getElementById('bu-update-price').checked;
+  const updatePublish  = document.getElementById('bu-update-publish').checked;
+  const updateDatetime = document.getElementById('bu-update-datetime').checked;
+
+  if(!updatePrice && !updatePublish && !updateDatetime){
+    log('warn','กรุณาเลือกอย่างน้อยหนึ่งอย่างที่ต้องการอัปเดต'); return;
+  }
+
+  const sel = Array.from(document.querySelectorAll('.manage-check:checked')).map(c => c.dataset.id);
+  if(!sel.length){ log('warn','ยังไม่ได้เลือกตอน'); return; }
+
+  const newPrice = updatePrice
+    ? (buPriceMode === 'custom' ? parseFloat(document.getElementById('bu-price-val').value)||0 : 0)
+    : null;
+
+  let startDt = null, intervalMin = 60;
+  if(updateDatetime){
+    const sv = document.getElementById('bu-start-datetime').value;
+    if(sv) startDt = new Date(sv);
+    intervalMin = parseInt(document.getElementById('bu-interval').value)||60;
+  }
+
+  isBatchUpdating = true; shouldStopBU = false;
+  const runBtn = document.getElementById('bu-run-btn');
+  runBtn.disabled = true;
+  document.getElementById('bu-stop-btn').style.display = 'inline-block';
+  document.getElementById('bu-progress-wrap').style.display = 'block';
+  document.getElementById('bu-progress-bar').style.width = '0%';
+
+  const what = [updatePrice?'ราคา':'', updatePublish?'สถานะ':'', updateDatetime?'เวลา':''].filter(Boolean).join(', ');
+  log('info', `Batch Update ${sel.length} ตอน · [${what}]`);
+
+  let done = 0, failed = 0;
+  for(let i = 0; i < sel.length; i++){
+    if(shouldStopBU){ log('warn','หยุด Batch Update โดยผู้ใช้'); break; }
+    const chId = sel[i];
+    const chInfo = publishedChapters.find(c => String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id) === String(chId));
+    const chTitle = chInfo ? (chInfo.novel_chapter_title||chInfo.chapter_title||chInfo.title||'ตอน '+chId) : 'ตอน '+chId;
+    document.getElementById('bu-progress-text').textContent = `${i+1}/${sel.length} · ${chTitle}`;
+    try {
+      const r = await apiGet(`https://api-writer.readrealm.co/writer/novels/chapters/getChapter?chapter_ID=${chId}&novel_ID=${selectedNovelId}`);
+      const data = await r.json();
+      const ch = data?.data||data?.chapter||data;
+
+      const dtValue = updateDatetime
+        ? (startDt ? (() => { const d = new Date(startDt); d.setMinutes(d.getMinutes() + intervalMin * i); return d.toISOString(); })() : new Date().toISOString())
+        : (ch?.novel_chapter_publish_datetime||ch?.chapter_publish_datetime||new Date().toISOString());
+
+      const payload = {
+        chapter_ID: chId,
+        novel_ID: selectedNovelId,
+        chapter_title: ch?.novel_chapter_title||ch?.chapter_title||chTitle,
+        chapter_content: ch?.novel_chapter_content||ch?.chapter_content||'',
+        chapter_note: ch?.novel_chapter_note||ch?.chapter_note||'',
+        chapter_price: updatePrice ? newPrice : (parseFloat(ch?.novel_chapter_price??ch?.chapter_price??0)||0),
+        chapter_publish: updatePublish ? (buPublishMode === 'publish') : (ch?.novel_chapter_publish??ch?.chapter_publish??true),
+        chapter_publish_datetime: dtValue
+      };
+
+      const ur = await apiPut('https://api-writer.readrealm.co/writer/novels/chapters/chapterUpdate', payload);
+      if(ur.ok){
+        done++;
+        log('ok', `[${done}/${sel.length}] ✓ ${chTitle}`);
+        if(chInfo && updatePrice){ chInfo.novel_chapter_price = newPrice; chInfo.chapter_price = newPrice; }
+        if(chInfo && updatePublish){ chInfo.novel_chapter_publish = buPublishMode === 'publish'; }
+      } else {
+        const e = await ur.json().catch(()=>({}));
+        failed++;
+        log('err', `[${i+1}] ✗ ${chTitle} → ${ur.status}: ${e?.message||''}`);
+      }
+    } catch(e){
+      failed++;
+      log('err', `[${i+1}] ✗ ${chTitle} → ${e.message}`);
+    }
+    document.getElementById('bu-progress-bar').style.width = ((i+1)/sel.length*100) + '%';
+    if(i < sel.length - 1 && !shouldStopBU) await sleep(300);
+  }
+
+  log('info', `Batch Update เสร็จสิ้น · สำเร็จ ${done} · ล้มเหลว ${failed}`);
+  renderManageList();
+  isBatchUpdating = false;
+  runBtn.disabled = false;
+  document.getElementById('bu-stop-btn').style.display = 'none';
+  document.getElementById('bu-progress-text').textContent = '';
+}
+
+// ─── Reorder / Swap Chapters ─────────────────────────────
+let isReorderMode = false;
+let reorderPending = false;
+let originalChapterOrder = [];
+
+function toggleReorderPanel(){
+  const panel = document.getElementById('reorder-panel');
+  panel.classList.toggle('hidden');
+  if(!panel.classList.contains('hidden')) populateSwapSelects();
+}
+
+function populateSwapSelects(){
+  const chOpts = publishedChapters.map((ch,i)=>{
+    const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
+    const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
+    return `<option value="${escHtml(String(id))}">#${i+1} · ${escHtml(title)}</option>`;
+  });
+  const blankOpt = '<option value="">— เลือกตอน —</option>';
+  document.getElementById('swap-ch1').innerHTML = blankOpt + chOpts.join('');
+  document.getElementById('swap-ch2').innerHTML = blankOpt + chOpts.join('');
+  document.getElementById('move-src').innerHTML = blankOpt + chOpts.join('');
+  // "after" select: top sentinel + all chapters as "วางหลัง #N"
+  const afterOpts = ['<option value="__TOP__">⬆ อยู่บนสุด (ตำแหน่งที่ 1)</option>',
+    ...publishedChapters.map((ch,i)=>{
+      const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
+      const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
+      return `<option value="${escHtml(String(id))}">วางหลัง #${i+1} · ${escHtml(title)}</option>`;
+    })
+  ].join('');
+  document.getElementById('move-after').innerHTML = afterOpts;
+}
+
+function moveToPosition(){
+  const srcId = document.getElementById('move-src').value;
+  const afterId = document.getElementById('move-after').value;
+  if(!srcId){ log('warn','กรุณาเลือกตอนที่จะย้าย'); return; }
+  const srcIdx = publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(srcId));
+  if(srcIdx<0) return;
+  if(!reorderPending) originalChapterOrder = [...publishedChapters];
+  const [moved] = publishedChapters.splice(srcIdx, 1);
+  if(afterId==='__TOP__'){
+    publishedChapters.unshift(moved);
+  } else {
+    // find destination after removal (index may have shifted)
+    const destIdx = publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(afterId));
+    if(destIdx<0){ publishedChapters.push(moved); }
+    else { publishedChapters.splice(destIdx+1, 0, moved); }
+  }
+  const title = moved.novel_chapter_title||moved.chapter_title||moved.title||srcId;
+  markReorderPending();
+  renderManageList();
+  populateSwapSelects();
+  log('info',`📌 ย้าย "${title}" ไปตำแหน่งใหม่แล้ว · รอบันทึก`);
+}
+
+function swapTwoChapters(){
+  const id1 = document.getElementById('swap-ch1').value;
+  const id2 = document.getElementById('swap-ch2').value;
+  if(!id1||!id2){ log('warn','กรุณาเลือกทั้ง 2 ตอน'); return; }
+  if(id1===id2){ log('warn','กรุณาเลือกตอนที่ต่างกัน'); return; }
+  const i1=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id1));
+  const i2=publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id2));
+  if(i1<0||i2<0) return;
+  if(!reorderPending) originalChapterOrder = [...publishedChapters];
+  [publishedChapters[i1],publishedChapters[i2]]=[publishedChapters[i2],publishedChapters[i1]];
+  markReorderPending();
+  renderManageList();
+  populateSwapSelects();
+  const t1=publishedChapters[i1].novel_chapter_title||publishedChapters[i1].chapter_title||id1;
+  const t2=publishedChapters[i2].novel_chapter_title||publishedChapters[i2].chapter_title||id2;
+  log('info',`↔ สลับลำดับ (ยังไม่บันทึก): "${t1}" ↔ "${t2}"`);
+}
+
+function toggleReorderArrows(){
+  isReorderMode = document.getElementById('reorder-arrows-mode').checked;
+  if(isReorderMode && !reorderPending) originalChapterOrder = [...publishedChapters];
+  renderManageList();
+}
+
+function moveChapter(id, dir){
+  const idx = publishedChapters.findIndex(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(id));
+  const targetIdx = idx + dir;
+  if(idx<0||targetIdx<0||targetIdx>=publishedChapters.length) return;
+  if(!reorderPending) originalChapterOrder = [...publishedChapters];
+  [publishedChapters[idx],publishedChapters[targetIdx]]=[publishedChapters[targetIdx],publishedChapters[idx]];
+  markReorderPending();
+  renderManageList();
+}
+
+function markReorderPending(){
+  reorderPending = true;
+  const bar = document.getElementById('reorder-save-bar');
+  if(bar) bar.classList.remove('hidden');
+  const txt = document.getElementById('reorder-pending-text');
+  if(txt) txt.textContent = `มีการเปลี่ยนลำดับ · รอบันทึก`;
+}
+
+async function saveChapterOrder(){
+  const items = publishedChapters.map(ch=>({
+    chapter_ID: String(ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id),
+    chapter_title: ch.novel_chapter_title||ch.chapter_title||ch.title||''
+  }));
+  try {
+    const r = await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterSwitch',{items});
+    if(r.ok){
+      log('ok','✓ บันทึกลำดับสำเร็จ');
+      resetReorderPending();
+      renderManageList();
+      populateSwapSelects();
+    } else {
+      const e=await r.json().catch(()=>({}));
+      log('err',`บันทึกล้มเหลว: ${r.status} · ${e?.message||''}`);
+    }
+  } catch(e){ log('err','บันทึกล้มเหลว: '+e.message); }
+}
+
+function cancelReorder(){
+  publishedChapters = [...originalChapterOrder];
+  resetReorderPending();
+  renderManageList();
+  populateSwapSelects();
+  log('info','ยกเลิกการเปลี่ยนลำดับ');
+}
+
+function resetReorderPending(){
+  reorderPending = false;
+  originalChapterOrder = [];
+  const bar = document.getElementById('reorder-save-bar');
+  if(bar) bar.classList.add('hidden');
+}
+
+// ─── ZIP Batch Update ─────────────────────────────────────
+let zipUpdateFiles = [];
+let isZipUpdating = false, shouldStopZU = false;
+
+function toggleZipUpdatePanel(){
+  const panel = document.getElementById('zip-update-panel');
+  panel.classList.toggle('hidden');
+  if(!publishedChapters.length && !panel.classList.contains('hidden'))
+    log('warn','กรุณากด "โหลดรายการตอนที่ลงแล้ว" ก่อน เพื่อให้ dropdown มีรายการ');
+}
+
+async function handleUpdateZip(file){
+  if(!file) return;
+  log('info','กำลังแตก ZIP: '+file.name);
+  try {
+    const buf = await file.arrayBuffer();
+    const entries = await unzipEntries(buf);
+    const txts = entries.filter(e=>e.name.toLowerCase().endsWith('.txt')&&!e.name.startsWith('__MACOSX'));
+    txts.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+    if(!txts.length){ log('warn','ไม่พบไฟล์ .txt ใน ZIP'); return; }
+    zipUpdateFiles = txts.map(e=>({
+      filename: e.name.replace(/^.*[\\/]/,''),
+      title: e.name.replace(/^.*[\\/]/,'').replace(/\.txt$/i,''),
+      content: e.text
+    }));
+    log('ok',`แตก ZIP: ${zipUpdateFiles.length} ไฟล์`);
+    renderZipMatchTable();
+    document.getElementById('zup-step2').classList.remove('hidden');
+  } catch(e){ log('err','แตก ZIP ล้มเหลว: '+e.message); }
+}
+
+function renderZipMatchTable(){
+  const table = document.getElementById('zup-match-table');
+  table.innerHTML = '';
+  zipUpdateFiles.forEach((f,i)=>{
+    const opts = ['<option value="">— ข้าม —</option>',
+      ...publishedChapters.map((ch,ci)=>{
+        const id = ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
+        const title = ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
+        const sel = ci===i?'selected':'';
+        return `<option value="${escHtml(String(id))}" ${sel}>#${ci+1} · ${escHtml(title)}</option>`;
+      })
+    ].join('');
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface3);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;';
+    row.innerHTML=`
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-muted);background:var(--surface2);border-radius:4px;padding:2px 7px;flex-shrink:0;">#${i+1}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(f.filename)}">${escHtml(f.title)}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);">${f.content.length.toLocaleString()} ตัวอักษร</div>
+      </div>
+      <span style="font-family:var(--mono);font-size:16px;color:var(--accent);flex-shrink:0;">→</span>
+      <select id="zup-map-${i}" style="flex:1.5;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;font-family:var(--sans);outline:none;">${opts}</select>`;
+    table.appendChild(row);
+  });
+}
+
+function matchZipByName(){
+  zipUpdateFiles.forEach((f,i)=>{
+    const sel = document.getElementById('zup-map-'+i);
+    if(!sel) return;
+    const fname = f.title.toLowerCase();
+    const best = publishedChapters.find(ch=>{
+      const t=(ch.novel_chapter_title||ch.chapter_title||ch.title||'').toLowerCase();
+      return t===fname||t.includes(fname)||fname.includes(t);
+    });
+    if(best){
+      const id=String(best.novel_chapter_ID||best.chapter_ID||best.id||best._id);
+      const opt=Array.from(sel.options).find(o=>o.value===id);
+      if(opt) sel.value=id;
+    }
+  });
+  log('info','จับคู่ตามชื่อแล้ว · ตรวจสอบ mapping ก่อนรัน');
+}
+
+function resetZipUpdate(){
+  zipUpdateFiles=[];
+  document.getElementById('zup-step2').classList.add('hidden');
+  document.getElementById('zup-match-table').innerHTML='';
+  const fi=document.getElementById('file-input-zup'); if(fi) fi.value='';
+  document.getElementById('zup-progress-bar').style.width='0%';
+  document.getElementById('zup-progress-wrap').style.display='none';
+  document.getElementById('zup-progress-text').textContent='';
+}
+
+function stopZipUpdate(){ shouldStopZU=true; }
+
+async function startZipBatchUpdate(){
+  if(isZipUpdating) return;
+  const token=getToken(); if(!token){log('err','กรุณากรอก Token');return;}
+  if(!selectedNovelId){log('err','กรุณาเลือกนิยาย');return;}
+  if(!zipUpdateFiles.length){log('warn','ยังไม่ได้โหลด ZIP');return;}
+
+  const mapping=zipUpdateFiles.map((f,i)=>({
+    file:f, chId:document.getElementById('zup-map-'+i)?.value||''
+  })).filter(m=>m.chId);
+
+  if(!mapping.length){log('warn','ไม่มีตอนที่จะอัปเดต (ทุกไฟล์ถูกตั้งเป็น "ข้าม")');return;}
+
+  const updateTitle=document.getElementById('zup-update-title').checked;
+
+  isZipUpdating=true; shouldStopZU=false;
+  const runBtn=document.getElementById('zup-run-btn');
+  runBtn.disabled=true;
+  document.getElementById('zup-stop-btn').style.display='inline-block';
+  document.getElementById('zup-progress-wrap').style.display='block';
+  document.getElementById('zup-progress-bar').style.width='0%';
+
+  log('info',`Batch Update จาก ZIP: ${mapping.length} ตอน${updateTitle?' · รวมชื่อ':''}`);
+
+  let done=0, failed=0;
+  for(let i=0;i<mapping.length;i++){
+    if(shouldStopZU){log('warn','หยุด Batch Update โดยผู้ใช้');break;}
+    const {file,chId}=mapping[i];
+    document.getElementById('zup-progress-text').textContent=`${i+1}/${mapping.length} · ${file.title}`;
+    try {
+      const r=await apiGet(`https://api-writer.readrealm.co/writer/novels/chapters/getChapter?chapter_ID=${chId}&novel_ID=${selectedNovelId}`);
+      const data=await r.json();
+      const ch=data?.data||data?.chapter||data;
+      const payload={
+        chapter_ID: chId,
+        novel_ID: selectedNovelId,
+        chapter_title: updateTitle ? file.title : (ch?.novel_chapter_title||ch?.chapter_title||file.title),
+        chapter_content: textToHtml(file.content),
+        chapter_note: ch?.novel_chapter_note||ch?.chapter_note||'',
+        chapter_price: parseFloat(ch?.novel_chapter_price??ch?.chapter_price??0)||0,
+        chapter_publish: ch?.novel_chapter_publish??ch?.chapter_publish??true,
+        chapter_publish_datetime: ch?.novel_chapter_publish_datetime||ch?.chapter_publish_datetime||new Date().toISOString()
+      };
+      const ur=await apiPut('https://api-writer.readrealm.co/writer/novels/chapters/chapterUpdate',payload);
+      if(ur.ok){
+        done++;
+        log('ok',`[${done}/${mapping.length}] ✓ ${file.title}`);
+        if(updateTitle){
+          const ci=publishedChapters.find(c=>String(c.novel_chapter_ID||c.chapter_ID||c.id||c._id)===String(chId));
+          if(ci){ci.novel_chapter_title=file.title;ci.chapter_title=file.title;}
+        }
+      } else {
+        const e=await ur.json().catch(()=>({}));
+        failed++;
+        log('err',`[${i+1}] ✗ ${file.title} → ${ur.status}: ${e?.message||''}`);
+      }
+    } catch(e){
+      failed++;
+      log('err',`[${i+1}] ✗ ${file.title} → ${e.message}`);
+    }
+    document.getElementById('zup-progress-bar').style.width=((i+1)/mapping.length*100)+'%';
+    if(i<mapping.length-1&&!shouldStopZU) await sleep(300);
+  }
+
+  log('info',`Batch Update เสร็จสิ้น · สำเร็จ ${done} · ล้มเหลว ${failed}`);
+  if(done>0) renderManageList();
+  isZipUpdating=false;
+  runBtn.disabled=false;
+  document.getElementById('zup-stop-btn').style.display='none';
+  document.getElementById('zup-progress-text').textContent='';
 }
 
 async function openEditPublished(id,title){
@@ -1342,12 +1936,15 @@ function apiPut(url,body){return fetch(url,{method:'PUT',headers:{'authorization
 function textToHtml(text){
   return text.split('\n').map(line=>{
     const t=line.trim();
-    return t?`<p>${escHtml(t)}</p>`:'<p>&nbsp;</p>';
+    if(!t) return '<p>&nbsp;</p>';
+    if(/^\*{3,}$|^\* \* \*$/.test(t)) return '<hr>';
+    return `<p>${escHtml(t)}</p>`;
   }).join('')||'<p></p>';
 }
 
 function htmlToPlain(html){
   return html
+    .replace(/<hr\s*\/?>/gi,'***')
     .replace(/<p>&nbsp;<\/p>/gi,'\n')
     .replace(/<\/p>/gi,'\n').replace(/<p>/gi,'')
     .replace(/<br\s*\/?>/gi,'\n')
@@ -1378,12 +1975,12 @@ function log(type,msg){
   document.getElementById('schedule-start').value=d.toISOString().slice(0,16);
   loadSavedToken();
   initBookmarklet();
-  log('info','ReadRealm Auto Poster v2.5 · พร้อมใช้งาน');
-  log('info','ใหม่: รองรับอัปโหลดจากไฟล์ EPUB');
+  log('info','ReadRealm Auto Poster v2.6 · พร้อมใช้งาน');
+  log('info','ใหม่: Batch Update ตอนที่ลงแล้ว (ราคา / สถานะ / เวลา)');
 })();
 
 // ─── Drag & drop ──────────────────────────────────────────
-['drop-zone','drop-zone-delim','drop-zone-zip','drop-zone-epub'].forEach(id=>{
+['drop-zone','drop-zone-delim','drop-zone-zip','drop-zone-epub','drop-zone-zup'].forEach(id=>{
   const el=document.getElementById(id); if(!el)return;
   el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('dragging');});
   el.addEventListener('dragleave',()=>el.classList.remove('dragging'));
@@ -1393,6 +1990,7 @@ function log(type,msg){
     if(id==='drop-zone')handleFiles(files);
     else if(id==='drop-zone-zip')handleZip(files[0]);
     else if(id==='drop-zone-epub')handleEpub(files[0]);
+    else if(id==='drop-zone-zup')handleUpdateZip(files[0]);
     else handleDelimFile(files[0]);
   });
 });
