@@ -606,6 +606,20 @@
 
         <hr class="divider" style="margin:10px 0;">
 
+        <hr class="divider" style="margin:10px 0;">
+
+        <!-- Sequence Check -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">ตรวจเลขลำดับจากชื่อตอน</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <button class="btn-sm" onclick="checkSequenceNumbers()">🔍 ตรวจสอบลำดับ</button>
+            <button class="btn-sm primary" onclick="autoSortByNumber()">🔢 จัดเรียงตามเลข</button>
+          </div>
+          <div id="seq-check-result" class="hidden" style="background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;max-height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;font-family:var(--mono);font-size:12px;line-height:1.8;"></div>
+        </div>
+
+        <hr class="divider" style="margin:10px 0;">
+
         <!-- Arrow mode -->
         <label class="bu-check-label" style="margin-bottom:10px;">
           <input type="checkbox" id="reorder-arrows-mode" onchange="toggleReorderArrows()" style="accent-color:var(--accent);width:15px;height:15px;" />
@@ -1622,6 +1636,100 @@ function resetReorderPending(){
   originalChapterOrder = [];
   const bar = document.getElementById('reorder-save-bar');
   if(bar) bar.classList.add('hidden');
+}
+
+// ─── Sequence Number Validation ──────────────────────────
+function extractTitleNumber(title) {
+  // ลำดับความสำคัญในการหาเลข:
+  // 1. "ตอนที่ N", "ตอน N", "บทที่ N", "Chapter N", "Ch. N", "ep N", "episode N"
+  // 2. เลขนำหน้า (leading digits) เช่น "001 ชื่อตอน"
+  // 3. เลขแรกที่พบในชื่อ
+  const patterns = [
+    /(?:ตอนที่|ตอน|บทที่|บท|chapter|ch\.?|ep\.?|episode)\s*(\d+)/i,
+    /^(\d+)[^.]/,
+    /(\d+)/
+  ];
+  for (const p of patterns) {
+    const m = title.match(p);
+    if (m) return parseInt(m[1]);
+  }
+  return null;
+}
+
+function checkSequenceNumbers() {
+  const panel = document.getElementById('seq-check-result');
+  if (!publishedChapters.length) {
+    log('warn', 'กรุณาโหลดรายการตอนก่อน');
+    return;
+  }
+
+  const items = publishedChapters.map((ch, i) => {
+    const title = ch.novel_chapter_title || ch.chapter_title || ch.title || '';
+    const num = extractTitleNumber(title);
+    return { ch, pos: i + 1, title, num };
+  });
+
+  const noNum = items.filter(x => x.num === null);
+  const hasNum = items.filter(x => x.num !== null);
+
+  // ตรวจหาตอนที่เลขไม่เรียงจากน้อยไปมาก
+  const outOfOrder = [];
+  for (let i = 0; i < hasNum.length - 1; i++) {
+    if (hasNum[i].num >= hasNum[i + 1].num) {
+      outOfOrder.push(hasNum[i]);
+      outOfOrder.push(hasNum[i + 1]);
+    }
+  }
+  const outSet = new Set(outOfOrder.map(x => x.pos));
+
+  let html = '';
+  if (noNum.length) {
+    html += `<div style="color:var(--text-muted);margin-bottom:6px;">⚪ ไม่พบเลขใน ${noNum.length} ตอน: ${noNum.slice(0,3).map(x=>`#${x.pos}`).join(', ')}${noNum.length>3?` ...`:''}</div>`;
+  }
+
+  if (!outOfOrder.length) {
+    html += `<div style="color:var(--green);">✓ ลำดับเลขถูกต้องทั้งหมด (${hasNum.length} ตอนมีเลข)</div>`;
+  } else {
+    const uniqueOut = [...new Set(outOfOrder.map(x => x.pos))];
+    html += `<div style="color:var(--yellow);margin-bottom:6px;">⚠ พบ ${uniqueOut.length} ตอนที่เลขไม่ตรงลำดับ:</div>`;
+    items.forEach(x => {
+      if (outSet.has(x.pos)) {
+        html += `<div style="color:var(--red);">✗ ตำแหน่ง #${x.pos} · เลข <b>${x.num}</b> · "${escHtml(x.title)}"</div>`;
+      }
+    });
+    html += `<div style="color:var(--text-muted);margin-top:6px;">→ กด "🔢 จัดเรียงตามเลข" เพื่อแก้อัตโนมัติ</div>`;
+  }
+
+  panel.innerHTML = html;
+  panel.classList.remove('hidden');
+}
+
+function autoSortByNumber() {
+  if (!publishedChapters.length) { log('warn', 'กรุณาโหลดรายการตอนก่อน'); return; }
+
+  const items = publishedChapters.map(ch => {
+    const title = ch.novel_chapter_title || ch.chapter_title || ch.title || '';
+    const num = extractTitleNumber(title);
+    return { ch, num: num !== null ? num : Infinity };
+  });
+
+  const hasNum = items.filter(x => x.num !== Infinity).length;
+  if (!hasNum) { log('warn', 'ไม่พบเลขในชื่อตอนเลย'); return; }
+
+  items.sort((a, b) => a.num - b.num);
+
+  if (!reorderPending) originalChapterOrder = [...publishedChapters];
+  publishedChapters = items.map(x => x.ch);
+  markReorderPending();
+  renderManageList();
+  populateSwapSelects();
+
+  // อัปเดตผลตรวจสอบ
+  const panel = document.getElementById('seq-check-result');
+  panel.innerHTML = `<div style="color:var(--green);">✓ จัดเรียง ${hasNum} ตอนตามเลขแล้ว · กด "บันทึกลำดับ" เพื่อส่งไปยัง server</div>`;
+  panel.classList.remove('hidden');
+
+  log('ok', `จัดเรียงตามเลขในชื่อตอนแล้ว (${hasNum} ตอน) · รอบันทึก`);
 }
 
 // ─── ZIP Batch Update ─────────────────────────────────────
