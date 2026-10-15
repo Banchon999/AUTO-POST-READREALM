@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ReadRealm Auto Poster</title>
+<title>Auto Poster</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -204,6 +204,18 @@
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spin { display: inline-block; animation: spin 1s linear infinite; }
+  /* Platform switch */
+  .platform-switch { display: flex; gap: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 16px; }
+  .platform-btn { flex: 1; padding: 9px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: var(--text-muted); font-family: var(--mono); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .platform-btn.active { background: var(--surface3); color: var(--text); border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+  .platform-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+  .type-badge { display: inline-block; font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 4px; background: var(--surface3); color: var(--accent2); }
+  .type-badge.cartoon { color: var(--yellow); background: var(--yellow-dim); }
+  .kw-steps { font-size: 12px; color: var(--text-dim); line-height: 1.9; margin: 0 0 10px 18px; }
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; max-height: 420px; overflow-y: auto; }
+  .img-grid figure { margin: 0; background: var(--surface3); border-radius: 6px; overflow: hidden; }
+  .img-grid img { width: 100%; height: 120px; object-fit: cover; display: block; }
+  .img-grid figcaption { font-family: var(--mono); font-size: 10px; color: var(--text-muted); padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   @media (max-width:600px) { .form-row { grid-template-columns: 1fr; } #novel-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -212,17 +224,23 @@
 
   <!-- Header -->
   <div class="header">
-    <div class="logo">RR</div>
+    <div class="logo" id="app-logo">RR</div>
     <div class="header-text">
-      <h1>ReadRealm Auto Poster</h1>
-      <p>ระบบลงนิยายอัตโนมัติ · readrealm.co</p>
+      <h1 id="app-title">ReadRealm Auto Poster</h1>
+      <p id="app-sub">ระบบลงนิยายอัตโนมัติ · readrealm.co</p>
     </div>
-    <div class="version-badge">v2.5</div>
+    <div class="version-badge">v3.0</div>
+  </div>
+
+  <div class="platform-switch">
+    <button class="platform-btn active" id="pf-readrealm" onclick="switchPlatform('readrealm')">📖 ReadRealm</button>
+    <button class="platform-btn" id="pf-kairew" onclick="switchPlatform('kairew')">🎴 Kairew</button>
   </div>
 
   <!-- 01 Auth -->
   <div class="card">
     <div class="card-title">01 · Authentication</div>
+    <div id="auth-rr">
     <div class="form-group">
       <label>Bearer Token</label>
       <div class="token-wrap">
@@ -242,12 +260,35 @@
         <span style="font-size:11px;color:var(--text-muted);">← ลาก drop ใส่ Bookmark bar</span>
       </div>
     </div>
+    </div>
+
+    <div id="auth-kw" class="hidden">
+      <div class="alert alert-info" style="font-size:12px;">
+        🔗 <b>Kairew ใช้การล็อกอินบนเว็บ (ไม่มี Token)</b> — โปรแกรมจะส่งงานผ่านแท็บ kairew.com ที่คุณล็อกอินไว้
+        <ol class="kw-steps">
+          <li>ลากปุ่ม <b>📌 KW Bridge</b> ด้านล่างไปวางที่ Bookmark bar (ทำครั้งเดียว)</li>
+          <li>กด <b>🔗 เปิด Kairew</b> → ล็อกอินในแท็บที่เปิดขึ้นมา (ถ้ายังไม่ได้ล็อกอิน)</li>
+          <li>ในแท็บ Kairew นั้น กดบุ๊กมาร์ก <b>📌 KW Bridge</b> → สถานะจะเป็น ✓ เชื่อมแล้ว</li>
+        </ol>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <a id="kw-bookmarklet" href="#" style="display:inline-block;padding:5px 14px;background:var(--accent);color:white;border-radius:6px;font-family:var(--mono);font-size:12px;text-decoration:none;cursor:grab;" draggable="true" onclick="event.preventDefault();log('warn','ต้องลากปุ่มนี้ไปไว้ที่ Bookmark bar แล้วกดบนแท็บ Kairew');">📌 KW Bridge</a>
+          <span style="font-size:11px;color:var(--text-muted);">← ลาก drop ใส่ Bookmark bar</span>
+          <button class="btn-sm" onclick="kwCopyBridge()" title="สำหรับวางใน Console (F12) ของแท็บ Kairew">📋 คัดลอกโค้ด Bridge</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="btn-sm primary" onclick="kwOpen()">🔗 เปิด Kairew</button>
+        <span class="token-status idle" id="kw-status" style="position:static;transform:none;cursor:default;">ยังไม่เชื่อม</span>
+        <span id="kw-user" style="font-family:var(--mono);font-size:12px;color:var(--text-dim);"></span>
+      </div>
+    </div>
+
     <button class="load-novels-btn" id="load-novels-btn" onclick="loadNovels()">⬇ โหลดรายการนิยาย</button>
   </div>
 
   <!-- 02 Novel -->
   <div class="card">
-    <div class="card-title">02 · เลือกนิยาย</div>
+    <div class="card-title" id="card2-title">02 · เลือกนิยาย</div>
     <div id="novel-grid">
       <div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);grid-column:1/-1;padding:16px;text-align:center;">กรอก Token แล้วกด "โหลดรายการนิยาย"</div>
     </div>
@@ -262,6 +303,43 @@
     </div>
 
     <div id="mode-batch">
+      <div id="kw-image-input" class="hidden">
+        <div class="tabs" style="margin-bottom:10px;">
+          <button class="tab active" onclick="switchImgInput('zip')" id="tab-img-zip">🗜️ ZIP หลายตอน</button>
+          <button class="tab" onclick="switchImgInput('folder')" id="tab-img-folder">📁 โฟลเดอร์</button>
+          <button class="tab" onclick="switchImgInput('files')" id="tab-img-files">🖼 รูป (1 ตอน)</button>
+        </div>
+        <div id="img-in-zip">
+          <div class="drop-zone" id="drop-zone-imgzip">
+            <input type="file" id="file-input-imgzip" accept=".zip" onchange="handleImageZip(this.files[0])" />
+            <div class="drop-icon">🗜️</div>
+            <div class="drop-label">วางไฟล์ .zip ที่นี่ หรือคลิกเพื่อเลือก</div>
+            <div class="drop-sub">1 โฟลเดอร์ใน zip = 1 ตอน (ชื่อโฟลเดอร์ = ชื่อตอน) · รูปเรียงตามชื่อไฟล์ · ไฟล์ที่ชื่อมี "cover" = ปกตอน</div>
+          </div>
+        </div>
+        <div id="img-in-folder" class="hidden">
+          <div class="drop-zone">
+            <input type="file" id="file-input-imgfolder" webkitdirectory directory multiple onchange="handleImageFolder(this.files)" />
+            <div class="drop-icon">📁</div>
+            <div class="drop-label">คลิกเพื่อเลือกโฟลเดอร์</div>
+            <div class="drop-sub">โฟลเดอร์ย่อย 1 อัน = 1 ตอน · ถ้ามีแต่รูปในโฟลเดอร์ = 1 ตอน</div>
+          </div>
+        </div>
+        <div id="img-in-files" class="hidden">
+          <div class="form-group">
+            <label>ชื่อตอน</label>
+            <input type="text" id="img-single-title" placeholder="ตอนที่ 01" maxlength="120" />
+          </div>
+          <div class="drop-zone" id="drop-zone-imgfiles">
+            <input type="file" id="file-input-imgfiles" multiple accept="image/*" onchange="handleImageFiles(this.files)" />
+            <div class="drop-icon">🖼</div>
+            <div class="drop-label">วางรูปของตอนนี้ หรือคลิกเพื่อเลือก</div>
+            <div class="drop-sub">รูปทั้งหมด = 1 ตอน · เรียงตามชื่อไฟล์</div>
+          </div>
+        </div>
+        <div class="alert alert-warn mt8" style="font-size:12px;">ข้อจำกัด Kairew: ไม่เกิน 300 รูป/ตอน · ไม่เกิน 20MB/รูป · รวมไม่ควรเกิน 100MB/ตอน</div>
+      </div>
+      <div id="text-input">
       <div class="tabs" style="margin-bottom:10px;">
         <button class="tab active" onclick="switchInput('files')" id="tab-files">📁 หลายไฟล์ .txt</button>
         <button class="tab" onclick="switchInput('zip')" id="tab-zip">🗜️ ไฟล์ .zip</button>
@@ -317,6 +395,7 @@
           • ข้าม linear="no" และ nav document อัตโนมัติ<br>
           • รองรับ <code>application/xhtml+xml</code> content documents §3.2
         </div>
+      </div>
       </div>
 
       <div id="chapter-list-wrap" class="hidden mt12">
@@ -376,6 +455,10 @@
         <label class="radio-opt" onclick="selectPrice(this,null)"><input type="radio" name="price" /> กำหนดเอง</label>
         <label class="radio-opt" onclick="selectPrice(this,'pattern')"><input type="radio" name="price" /> 🔄 สลับราคา</label>
       </div>
+    </div>
+    <div class="setting-row hidden" id="kw-follow-row">
+      <div><div class="setting-label">ตอนติดเหรียญบน Kairew</div><div class="setting-desc">ติ๊ก = กดติดตามอ่านฟรี (ราคาสำหรับคนไม่ติดตาม)</div></div>
+      <label class="toggle"><input type="checkbox" id="kw-follow" /><span class="toggle-slider"></span></label>
     </div>
     <div class="form-group hidden" id="price-custom-wrap">
       <label>จำนวนเหรียญ</label>
@@ -515,6 +598,7 @@ let priceMode = 0, publishMode = 'now';
 let mode = 'batch', inputMode = 'files';
 let publishedChapters = [], editingRawId = null, editingChapterData = null, previewIndex = 0;
 let prefixApplied = false;
+let platform = 'readrealm', selectedBook = null, imgInputMode = 'zip';
 
 // ─── Token / Novels ──────────────────────────────────────
 function getToken() { return document.getElementById('bearer-token').value.trim(); }
@@ -586,6 +670,7 @@ function showTokenStatus(s) {
 }
 
 async function loadNovels() {
+  if (platform==='kairew') return kwLoadBooks();
   const t = getToken(); if (!t) { log('err','กรุณากรอก Token'); return; }
   const btn = document.getElementById('load-novels-btn');
   btn.textContent = '⏳ กำลังโหลด...'; btn.disabled = true;
@@ -621,6 +706,7 @@ function selectNovel(id, title, el) {
   document.querySelectorAll('.novel-card').forEach(c => { c.classList.remove('selected'); c.querySelector('.novel-check').classList.add('hidden'); });
   el.classList.add('selected'); el.querySelector('.novel-check').classList.remove('hidden');
   selectedNovelId = id; selectedNovelTitle = title;
+  if (platform==='kairew') { selectedBook = kwBooks.find(b=>String(b.id)===String(id)) || null; applyBookType(); }
   log('info','เลือก: '+title);
 }
 
@@ -669,7 +755,7 @@ async function handleZip(file) {
   } catch(e) { log('err','แตก ZIP ล้มเหลว: '+e.message); }
 }
 
-async function unzipEntries(buf) {
+async function unzipEntries(buf, binary=false) {
   const view = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder('utf-8');
   const entries = [];
   let eocd = -1;
@@ -688,19 +774,20 @@ async function unzipEntries(buf) {
     const lhFnLen=view.getUint16(localOffset+26,true), lhExtraLen=view.getUint16(localOffset+28,true);
     const dataStart=localOffset+30+lhFnLen+lhExtraLen;
     const compData=u8.slice(dataStart,dataStart+compSize);
-    let text='';
+    let raw=null;
     if (compMethod===0) {
-      text=dec.decode(compData);
+      raw=compData;
     } else if (compMethod===8) {
       const ds=new DecompressionStream('deflate-raw'), w=ds.writable.getWriter();
-      w.write(compData); w.close();
+      w.write(compData).catch(()=>{}); w.close().catch(()=>{});
       const chunks=[]; const reader=ds.readable.getReader();
       while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);}
       const total=chunks.reduce((s,c)=>s+c.length,0), out=new Uint8Array(total); let off=0;
       chunks.forEach(c=>{out.set(c,off);off+=c.length;});
-      text=dec.decode(out);
+      raw=out;
     }
-    entries.push({name,text});
+    if (raw===null) continue;
+    entries.push(binary?{name,data:raw}:{name,text:dec.decode(raw)});
   }
   return entries;
 }
@@ -971,7 +1058,7 @@ function renderChapterList(){
     div.innerHTML=`<input type="checkbox" class="manage-check ch-check" data-id="${ch.id}" data-idx="${i}" onchange="onChapterCheck(event,${i})" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;" />
       <span class="ch-num">#${i+1}</span>
       <span class="ch-title" title="${escHtml(ch.title)}" ondblclick="inlineEdit(this,'${ch.id}')">${escHtml(ch.title)}</span>
-      <span class="ch-chars">${ch.content.length.toLocaleString()} ตัว</span>
+      <span class="ch-chars">${ch.images?ch.images.length+' รูป'+(ch.cover?' +ปก':''):ch.content.length.toLocaleString()+' ตัว'}</span>
       <span class="ch-status ${ch.status}" id="status-${ch.id}">${statusLabel(ch.status)}</span>
       <button class="ch-btn" onclick="previewChapter('${ch.id}')" title="Preview">👁</button>
       <button class="ch-btn del" onclick="removeChapter('${ch.id}')" title="ลบ" ${isRunning?'disabled':''}>✕</button>`;
@@ -992,7 +1079,7 @@ function inlineEdit(el,id){
 
 function statusLabel(s){return{pending:'รอ',uploading:'⏳ ส่ง',done:'✓ สำเร็จ',error:'✗ ล้มเหลว'}[s]||s;}
 function removeChapter(id){chapters=chapters.filter(c=>String(c.id)!==String(id));renderChapterList();}
-function clearChapters(){chapters=[];renderChapterList();['file-input','file-input-delim','file-input-zip','file-input-epub'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
+function clearChapters(){chapters=[];renderChapterList();['file-input','file-input-delim','file-input-zip','file-input-epub','file-input-imgzip','file-input-imgfolder','file-input-imgfiles'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
 function updateStats(){
   document.getElementById('stat-total').textContent=chapters.length;
   document.getElementById('stat-done').textContent=chapters.filter(c=>c.status==='done').length;
@@ -1110,6 +1197,7 @@ function previewSingle(){
 
 function renderPreview(){
   const ch=chapters[previewIndex]; if(!ch)return;
+  if(ch.images){renderImagePreview(ch);return;}
   const html=textToHtml(ch.content);
   document.getElementById('preview-chapter-name').textContent=`[${previewIndex+1}/${chapters.length}] ${ch.title}`;
   document.getElementById('preview-content').innerHTML=html;
@@ -1127,6 +1215,7 @@ function switchPreviewTab(tab){
 
 // ─── Manage Published ─────────────────────────────────────
 async function loadPublishedChapters(){
+  if(platform==='kairew')return kwLoadEpisodes();
   const t=getToken(); if(!t){log('err','กรุณากรอก Token');return;}
   if(!selectedNovelId){log('err','กรุณาเลือกนิยายก่อน');return;}
   const btn=document.getElementById('load-chapters-btn');
@@ -1142,6 +1231,7 @@ async function loadPublishedChapters(){
 }
 
 function renderManageList(){
+  if(platform==='kairew')return kwRenderManageList();
   const list=document.getElementById('manage-list'); list.innerHTML='';
   if(!publishedChapters.length){list.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);padding:16px;text-align:center;">ไม่พบตอน</div>';return;}
   publishedChapters.forEach((ch,i)=>{
@@ -1174,6 +1264,7 @@ async function deleteSelected(){
   const sel=Array.from(document.querySelectorAll('.manage-check:checked')).map(c=>c.dataset.id);
   if(!sel.length){log('warn','ยังไม่ได้เลือกตอน');return;}
   if(!confirm(`ลบ ${sel.length} ตอน? ไม่สามารถกู้คืนได้`))return;
+  if(platform==='kairew')return kwDeleteEpisodes(sel);
   log('info',`กำลังลบ ${sel.length} ตอน...`);
   try {
     const r=await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterAction',{action:'delete',chapter_select:sel});
@@ -1189,6 +1280,8 @@ async function deleteSelected(){
 }
 
 async function openEditPublished(id,title){
+  document.getElementById('edit-content').closest('.form-group').classList.remove('hidden');
+  if(platform==='kairew')return kwOpenEdit(id,title);
   log('info','กำลังโหลดตอน: '+title);
   try {
     const r=await apiGet(`https://api-writer.readrealm.co/writer/novels/chapters/getChapter?chapter_ID=${id}&novel_ID=${selectedNovelId}`);
@@ -1206,6 +1299,7 @@ async function saveEditedChapter(){
   const title=document.getElementById('edit-title').value.trim();
   const content=document.getElementById('edit-content').value;
   if(!title){alert('กรุณากรอกชื่อตอน');return;}
+  if(platform==='kairew')return kwSaveEdit(title,content);
   try {
     const orig=editingChapterData||{};
     const payload={
@@ -1264,14 +1358,17 @@ function getPrice(idx){
   }
   return parseFloat(document.getElementById('price-custom').value)||0;
 }
-function getPublishDatetime(idx=0){if(publishMode==='schedule'){const s=document.getElementById('schedule-start').value,iv=parseInt(document.getElementById('schedule-interval').value)||60;if(s){const d=new Date(s);d.setMinutes(d.getMinutes()+iv*idx);return d.toISOString();}}return new Date().toISOString();}
+function getPublishDate(idx=0){if(publishMode==='schedule'){const s=document.getElementById('schedule-start').value,iv=parseInt(document.getElementById('schedule-interval').value)||60;if(s){const d=new Date(s);d.setMinutes(d.getMinutes()+iv*idx);return d;}}return new Date();}
+function getPublishDatetime(idx=0){return getPublishDate(idx).toISOString();}
 function isPublish(){return publishMode!=='draft';}
 
 // ─── Upload ───────────────────────────────────────────────
 async function startUpload(){
   if(isRunning)return;
-  const token=getToken(); if(!token){log('err','กรุณากรอก Token');return;}
-  if(!selectedNovelId){log('err','กรุณาเลือกนิยาย');return;}
+  const token=getToken();
+  if(platform==='readrealm'&&!token){log('err','กรุณากรอก Token');return;}
+  if(platform==='kairew'&&!kwIsConnected()){log('err','ยังไม่ได้เชื่อม Kairew — กด "🔗 เปิด Kairew" แล้วกดบุ๊กมาร์ก KW Bridge');return;}
+  if(!selectedNovelId){log('err',platform==='kairew'?'กรุณาเลือกหนังสือ':'กรุณาเลือกนิยาย');return;}
   if(mode==='single'){await uploadSingle(token);return;}
 
   // Apply prefix if enabled (section 04 removed - skip)
@@ -1295,12 +1392,18 @@ async function startUpload(){
     while(attempt<=retry&&!success){
       if(attempt>0){log('warn',`Retry #${attempt}: ${ch.title}`);await sleep(2000);}
       try{
+        if(platform==='kairew'){
+          const res=await kwCreateEpisode(ch,schedIdx,note);
+          success=true;setChapterStatus(ch.id,'done');done++;const chPrice=getPrice(schedIdx);schedIdx++;
+          log('ok',`[${done}/${total}] ✓ ${ch.title}${chPrice>0?' · '+chPrice+' เหรียญ':' · ฟรี'}${res.warn?' · '+res.warn:''}`);
+          break;
+        }
         const payload={chapter_ID:"0",novel_ID:selectedNovelId,chapter_title:ch.title,chapter_content:textToHtml(ch.content),chapter_note:note,chapter_price:getPrice(schedIdx),chapter_publish:isPublish(),chapter_publish_datetime:getPublishDatetime(schedIdx)};
         const r=await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterCreate',payload);
         const resp=await r.json().catch(()=>({}));
         if(r.ok){success=true;setChapterStatus(ch.id,'done');done++;const chPrice=getPrice(schedIdx);schedIdx++;log('ok',`[${done}/${total}] ✓ ${ch.title}${chPrice>0?' · '+chPrice+' เหรียญ':' · ฟรี'}`);}
         else{log('err',`[${i+1}] ✗ ${ch.title} → ${r.status}: ${resp?.message||JSON.stringify(resp)}`);}
-      }catch(e){log('err',`[${i+1}] ✗ ${ch.title} → ${e.message}`);}
+      }catch(e){log('err',`[${i+1}] ✗ ${ch.title} → ${e.message}`);if(e.fatal)attempt=retry;if(e.stopAll)shouldStop=true;}
       attempt++;
     }
     if(!success)setChapterStatus(ch.id,'error');
@@ -1320,6 +1423,11 @@ async function uploadSingle(token){
   isRunning=true; document.getElementById('run-btn').disabled=true; document.getElementById('progress-wrap').style.display='block';
   log('info','กำลังส่ง: '+title);
   try{
+    if(platform==='kairew'){
+      const res=await kwCreateEpisode({title,content},0,note);
+      log('ok','✓ ส่งสำเร็จ: '+title+(res.warn?' · '+res.warn:''));updateProgress(1,1);document.getElementById('single-title').value='';document.getElementById('single-content').value='';
+      isRunning=false; document.getElementById('run-btn').disabled=false; return;
+    }
     const payload={chapter_ID:"0",novel_ID:selectedNovelId,chapter_title:title,chapter_content:textToHtml(content),chapter_note:note,chapter_price:getPrice(0),chapter_publish:isPublish(),chapter_publish_datetime:getPublishDatetime(0)};
     const r=await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterCreate',payload);
     const resp=await r.json().catch(()=>({}));
@@ -1332,6 +1440,396 @@ async function uploadSingle(token){
 function stopUpload(){shouldStop=true;}
 function setChapterStatus(id,status){const ch=chapters.find(c=>String(c.id)===String(id));if(ch)ch.status=status;const el=document.getElementById('status-'+id);if(el){el.className='ch-status '+status;el.textContent=statusLabel(status);}updateStats();}
 function updateProgress(done,total){document.getElementById('progress-bar').style.width=(done/total*100)+'%';}
+
+// ─── Platform switch ─────────────────────────────────────
+function switchPlatform(p, silent=false){
+  if(isRunning){log('warn','กำลังอัปโหลดอยู่ เปลี่ยนเว็บไม่ได้');return;}
+  if(!silent&&p===platform)return;
+  platform=p;
+  try{localStorage.setItem('ap_platform',p);}catch(e){}
+  const kw=p==='kairew';
+  document.getElementById('pf-readrealm').classList.toggle('active',!kw);
+  document.getElementById('pf-kairew').classList.toggle('active',kw);
+  document.getElementById('app-logo').textContent=kw?'KW':'RR';
+  document.getElementById('app-title').textContent=kw?'Kairew Auto Poster':'ReadRealm Auto Poster';
+  document.getElementById('app-sub').textContent=kw?'ระบบลงนิยาย/การ์ตูนอัตโนมัติ · kairew.com':'ระบบลงนิยายอัตโนมัติ · readrealm.co';
+  document.getElementById('auth-rr').classList.toggle('hidden',kw);
+  document.getElementById('auth-kw').classList.toggle('hidden',!kw);
+  document.getElementById('kw-follow-row').classList.toggle('hidden',!kw);
+  document.getElementById('card2-title').textContent=kw?'02 · เลือกหนังสือ':'02 · เลือกนิยาย';
+  document.getElementById('load-novels-btn').textContent=kw?'⬇ โหลดรายการหนังสือ':'⬇ โหลดรายการนิยาย';
+  // reset selections that belong to the other platform
+  selectedNovelId=null; selectedNovelTitle=''; selectedBook=null;
+  publishedChapters=[]; document.getElementById('manage-list').innerHTML=''; document.getElementById('manage-area').classList.add('hidden');
+  document.getElementById('novel-grid').innerHTML=`<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);grid-column:1/-1;padding:16px;text-align:center;">${kw?'เชื่อม Kairew แล้วกด "โหลดรายการหนังสือ"':'กรอก Token แล้วกด "โหลดรายการนิยาย"'}</div>`;
+  if(kw&&kwBooks.length)kwRenderBooks();
+  applyBookType();
+  if(!silent)log('info','เปลี่ยนเป็น '+(kw?'Kairew':'ReadRealm'));
+}
+
+// Show image inputs for Kairew cartoon books, text inputs otherwise
+function applyBookType(){
+  const cartoon=platform==='kairew'&&selectedBook&&selectedBook.type==='cartoon';
+  document.getElementById('kw-image-input').classList.toggle('hidden',!cartoon);
+  document.getElementById('text-input').classList.toggle('hidden',cartoon);
+  document.getElementById('tab-single').classList.toggle('hidden',cartoon);
+  if(cartoon&&mode==='single')switchMode('batch');
+  const wrong=chapters.filter(c=>c.status==='pending'&&(cartoon?!c.images:!!c.images)).length;
+  if(wrong)log('warn',`มี ${wrong} ตอนในรายการที่ไม่ตรงกับประเภทหนังสือ (${cartoon?'การ์ตูนต้องเป็นรูป':'นิยายต้องเป็นข้อความ'}) — ตอนเหล่านั้นจะอัปไม่ผ่าน`);
+}
+
+// ─── Kairew bridge (runs inside the kairew.com tab) ──────
+// Stringified into the bookmarklet: must not reference anything outside itself.
+function kwBridgeMain(){
+  if(location.hostname!=='kairew.com'){alert('ใช้ KW Bridge บนเว็บ kairew.com เท่านั้น');return;}
+  var op=window.opener;
+  if(!op||op.closed){alert('ไม่พบหน้าต่าง Auto Poster\n\nให้กดปุ่ม "🔗 เปิด Kairew" ในโปรแกรม Auto Poster\nแล้วกดบุ๊กมาร์กนี้ในแท็บ Kairew ที่เปิดขึ้นมา');return;}
+  function csrf(){var m=document.querySelector('meta[name="csrf-token"]');if(m&&m.content)return m.content;try{return JSON.parse(document.getElementById('app').dataset.page).props.csrf_token||'';}catch(e){return '';}}
+  function xsrf(){var c=document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);return c?decodeURIComponent(c[1]):'';}
+  if(!window.__apBridge){
+    window.__apBridge=1;
+    window.addEventListener('message',async function(e){
+      if(e.source!==window.opener)return;
+      var m=e.data;if(!m||m.kw!=='req')return;
+      var src=e.source;
+      function reply(x){x.kw='res';x.id=m.id;try{src.postMessage(x,'*');}catch(_){}}
+      try{src.postMessage({kw:'ack',id:m.id},'*');}catch(_){}
+      try{
+        if(typeof m.path!=='string'||m.path.charAt(0)!=='/'||m.path.charAt(1)==='/')throw new Error('bad path');
+        var h={'X-Requested-With':'XMLHttpRequest','Accept':'application/json, text/plain, */*'};
+        var tk=csrf(),xs=xsrf();if(tk)h['X-CSRF-TOKEN']=tk;if(xs)h['X-XSRF-TOKEN']=xs;
+        var o={method:m.method||'GET',headers:h,credentials:'same-origin'};
+        if(m.form){var fd=new FormData();m.form.forEach(function(p){if(p[2])fd.append(p[0],p[1],p[2]);else fd.append(p[0],p[1]);});if(tk)fd.append('_token',tk);o.body=fd;}
+        else if(m.json){h['Content-Type']='application/json';var b=Object.assign({},m.json);if(tk)b._token=tk;o.body=JSON.stringify(b);}
+        var r=await fetch(m.path,o);var t=await r.text();
+        reply({status:r.status,ok:r.ok,url:r.url,body:t});
+      }catch(err){reply({error:String(err&&err.message||err)});}
+    });
+    window.addEventListener('pagehide',function(){try{if(window.opener)window.opener.postMessage({kw:'bye'},'*');}catch(_){}});
+    var d=document.createElement('div');
+    d.textContent='🔗 Auto Poster Bridge ทำงานอยู่ — อย่าปิดหรือเปลี่ยนหน้าแท็บนี้ระหว่างอัปโหลด';
+    d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#7c5aff;color:#fff;font:600 13px sans-serif;padding:8px 12px;text-align:center;pointer-events:none';
+    document.body.appendChild(d);
+  }
+  op.postMessage({kw:'ready',href:location.href},'*');
+}
+
+// ─── Kairew client (talks to the bridge) ─────────────────
+const KW_ORIGIN='https://kairew.com';
+let kwWin=null, kwReady=false, kwSeq=0, kwBooks=[], kwEditing=null;
+const kwPending=new Map();
+
+function kwBridgeCode(){return '('+kwBridgeMain.toString()+')();';}
+function kwInitBookmarklet(){document.getElementById('kw-bookmarklet').href='javascript:'+encodeURIComponent(kwBridgeCode());}
+function kwCopyBridge(){
+  const code=kwBridgeCode();
+  (navigator.clipboard?navigator.clipboard.writeText(code):Promise.reject()).then(
+    ()=>log('ok','คัดลอกโค้ด Bridge แล้ว → วางใน Console (F12) ของแท็บ Kairew ที่เปิดจากปุ่ม "เปิด Kairew"'),
+    ()=>{prompt('คัดลอกโค้ดนี้ไปวางใน Console ของแท็บ Kairew',code);});
+}
+function kwIsConnected(){return !!(kwWin&&!kwWin.closed&&kwReady);}
+function setKwStatus(s,text){
+  const el=document.getElementById('kw-status');
+  el.className='token-status '+(s==='ok'?'valid':s==='err'?'invalid':'idle');
+  el.textContent=text||(s==='ok'?'✓ เชื่อมแล้ว':s==='wait'?'⏳ รอกดบุ๊กมาร์ก':s==='err'?'✗ หลุดการเชื่อมต่อ':'ยังไม่เชื่อม');
+}
+function kwOpen(){
+  if(kwWin&&!kwWin.closed){kwWin.focus();if(!kwReady)log('info','กดบุ๊กมาร์ก 📌 KW Bridge ในแท็บ Kairew');return;}
+  kwWin=window.open(KW_ORIGIN+'/writer/manage-book','kairew_bridge');
+  if(!kwWin){log('err','เบราว์เซอร์บล็อกป๊อปอัป — อนุญาตป๊อปอัปให้หน้านี้แล้วกดใหม่');return;}
+  kwReady=false; setKwStatus('wait');
+  log('info','เปิด Kairew แล้ว → ล็อกอิน (ถ้ายังไม่ได้) แล้วกดบุ๊กมาร์ก 📌 KW Bridge ในแท็บนั้น');
+}
+window.addEventListener('message',e=>{
+  if(e.origin!==KW_ORIGIN||!e.data||typeof e.data!=='object')return;
+  const m=e.data;
+  if(m.kw==='ready'){
+    const first=!kwReady; kwWin=e.source; kwReady=true; setKwStatus('ok');
+    if(first){log('ok','เชื่อม Kairew สำเร็จ');if(platform==='kairew')kwLoadBooks();}
+  } else if(m.kw==='bye'){
+    if(e.source!==kwWin)return;
+    kwReady=false; setKwStatus('err','✗ แท็บ Kairew เปลี่ยนหน้า — กดบุ๊กมาร์กใหม่');
+    for(const p of kwPending.values())p.fail(Object.assign(new Error('แท็บ Kairew ถูกปิดหรือเปลี่ยนหน้า'),{fatal:true,stopAll:true}));
+    kwPending.clear();
+    log('warn','แท็บ Kairew ถูกเปลี่ยนหน้า/ปิด — กดบุ๊กมาร์ก 📌 KW Bridge ในแท็บนั้นอีกครั้ง');
+  } else if(m.kw==='ack'||m.kw==='res'){
+    if(e.source!==kwWin)return;
+    const p=kwPending.get(m.id); if(!p)return;
+    if(m.kw==='ack'){p.acked();return;}
+    kwPending.delete(m.id); p.done(m);
+  }
+});
+
+// One request through the bridge. Resolves {status, ok, url, body}.
+function kwRequest(method,path,{form=null,json=null,timeout=600000}={}){
+  return new Promise((resolve,reject)=>{
+    if(!kwIsConnected()){
+      if(kwReady){kwReady=false;setKwStatus('err');}
+      reject(Object.assign(new Error('ยังไม่ได้เชื่อม Kairew — กด "🔗 เปิด Kairew" แล้วกดบุ๊กมาร์ก 📌 KW Bridge'),{fatal:true,stopAll:true}));return;
+    }
+    const id=++kwSeq;
+    const fail=err=>{clearTimeout(ackT);clearTimeout(allT);kwPending.delete(id);reject(err);};
+    // No ack within 10s → bridge is gone (page reloaded without "bye")
+    const ackT=setTimeout(()=>{kwReady=false;setKwStatus('err');fail(Object.assign(new Error('Bridge ไม่ตอบ — กดบุ๊กมาร์ก 📌 KW Bridge ในแท็บ Kairew ใหม่'),{fatal:true,stopAll:true}));},10000);
+    const allT=setTimeout(()=>fail(Object.assign(new Error('หมดเวลารอ (เซิร์ฟเวอร์อาจยังประมวลผลอยู่ — ตรวจสอบบนเว็บก่อนอัปซ้ำ)'),{fatal:true})),timeout);
+    kwPending.set(id,{acked:()=>clearTimeout(ackT),done:m=>{clearTimeout(ackT);clearTimeout(allT);m.error?reject(new Error(m.error)):resolve(m);},fail});
+    kwWin.postMessage({kw:'req',id,method,path,form,json},KW_ORIGIN);
+  });
+}
+
+function kwErrorFrom(r){
+  let data=null; try{data=JSON.parse(r.body);}catch(e){}
+  let msg='';
+  if(data&&typeof data==='object'){
+    if(data.errors){const v=Object.values(data.errors)[0];msg=Array.isArray(v)?v[0]:String(v);}
+    else msg=data.message||data.error||'';
+  }
+  const err=new Error(`${r.status}${msg?' · '+msg:''}`);
+  if(r.status===401){err.message='ยังไม่ได้ล็อกอิน Kairew (401) — ล็อกอินในแท็บ Kairew แล้วกดบุ๊กมาร์กใหม่';err.fatal=true;err.stopAll=true;}
+  else if(r.status===419){err.message='CSRF หมดอายุ (419) — รีเฟรชแท็บ Kairew แล้วกดบุ๊กมาร์กใหม่';err.fatal=true;err.stopAll=true;}
+  else if(r.status===403||r.status===422||r.status===413){err.fatal=true;if(r.status===413)err.message='413 · ไฟล์ใหญ่เกินที่เซิร์ฟเวอร์รับ';}
+  else if([502,504,524].includes(r.status)||(data&&data.timeout===true)){err.fatal=true;err.message=`${r.status} · เซิร์ฟเวอร์ประมวลผลนาน อาจขึ้นแล้ว — ตรวจสอบบนเว็บก่อนอัปซ้ำ`;}
+  return err;
+}
+
+// GET an Inertia page and return its data-page JSON
+async function kwPage(path){
+  const r=await kwRequest('GET',path,{timeout:120000});
+  if(!r.ok)throw kwErrorFrom(r);
+  if(/\/login(\/|\?|$)/.test(new URL(r.url,KW_ORIGIN).pathname))throw kwErrorFrom({status:401,body:''});
+  const doc=new DOMParser().parseFromString(r.body,'text/html');
+  const el=doc.getElementById('app');
+  if(!el||!el.getAttribute('data-page'))throw new Error('อ่านข้อมูลหน้า '+path+' ไม่ได้');
+  return JSON.parse(el.getAttribute('data-page'));
+}
+
+// POST multipart form ([[key,value,filename?],...]) to a JSON endpoint
+async function kwPostForm(path,form){
+  const r=await kwRequest('POST',path,{form});
+  if(!r.ok)throw kwErrorFrom(r);
+  let data=null; try{data=JSON.parse(r.body);}catch(e){}
+  if(data&&data.success===true)return data;
+  if(data&&data.success===false)throw Object.assign(new Error(data.message||'ไม่สำเร็จ'),{fatal:true});
+  return {warn:'เซิร์ฟเวอร์ไม่ได้ตอบเป็น JSON — ตรวจสอบบนเว็บอีกครั้ง'};
+}
+
+function kwDate(d){const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
+function kwShareType(){return publishMode==='draft'?'hide':publishMode==='schedule'?'settime':'share';}
+
+// ─── Kairew books ────────────────────────────────────────
+async function kwLoadBooks(){
+  const btn=document.getElementById('load-novels-btn');
+  btn.textContent='⏳ กำลังโหลด...'; btn.disabled=true;
+  try{
+    const page=await kwPage('/writer/manage-book');
+    const pr=page.props||{};
+    const u=pr.auth&&pr.auth.user;
+    document.getElementById('kw-user').textContent=u?'👤 '+u.name:'';
+    kwBooks=[...(pr.cartoon_list||[]),...(pr.novel_list||[])];
+    kwRenderBooks();
+    log('ok',`โหลดหนังสือ ${kwBooks.length} เรื่อง (การ์ตูน ${(pr.cartoon_list||[]).length} · นิยาย ${(pr.novel_list||[]).length})`);
+  }catch(e){log('err','โหลดไม่สำเร็จ: '+e.message);}
+  btn.textContent='⬇ โหลดรายการหนังสือ'; btn.disabled=false;
+}
+
+function kwRenderBooks(){
+  const grid=document.getElementById('novel-grid');
+  if(!kwBooks.length){grid.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);grid-column:1/-1;padding:16px;text-align:center;">ไม่พบหนังสือ</div>';return;}
+  grid.innerHTML='';
+  kwBooks.forEach(b=>{
+    const cover=b.image&&b.image.path||'';
+    const card=document.createElement('div');
+    card.className='novel-card'+(String(b.id)===String(selectedNovelId)?' selected':''); card.dataset.id=b.id;
+    card.innerHTML=`${cover?`<img class="novel-thumb" src="${escHtml(cover)}" onerror="this.style.display='none'"/>`:'<div class="novel-thumb"></div>'}
+      <div class="novel-info"><div class="novel-title" title="${escHtml(b.name)}">${escHtml(b.name)}</div><div class="novel-meta"><span class="type-badge ${b.type==='cartoon'?'cartoon':''}">${b.type==='cartoon'?'การ์ตูน':'นิยาย'}</span>${b.episode_count??0} ตอน · ID: ${b.id}</div></div>
+      <div class="novel-check ${String(b.id)===String(selectedNovelId)?'':'hidden'}">✓</div>`;
+    card.onclick=()=>selectNovel(b.id,b.name,card);
+    grid.appendChild(card);
+  });
+}
+
+// ─── Kairew upload ───────────────────────────────────────
+const KW_MAX_IMG=20*1024*1024, KW_MAX_IMGS=300;
+async function kwCreateEpisode(ch,idx,note){
+  const book=selectedBook;
+  if(!book)throw Object.assign(new Error('ยังไม่ได้เลือกหนังสือ'),{fatal:true,stopAll:true});
+  const price=getPrice(idx);
+  const share=kwShareType();
+  const form=[['book_id',String(book.id)],['type',book.type],['name',ch.title]];
+  form.push(['price_type',price>0?(document.getElementById('kw-follow').checked?'follow':'buy'):'free']);
+  if(price>0)form.push(['price',String(price)]);
+  form.push(['share_type',share]);
+  if(share!=='hide')form.push(['share_datetime',kwDate(getPublishDate(idx))]);
+  if(note)form.push(['message_to_reader',note]);
+  if(book.type==='cartoon'){
+    if(!ch.images||!ch.images.length)throw Object.assign(new Error('ตอนนี้ไม่มีรูป (หนังสือการ์ตูนต้องอัปเป็นรูป)'),{fatal:true});
+    if(ch.images.length>KW_MAX_IMGS)throw Object.assign(new Error(`รูปเกิน ${KW_MAX_IMGS} รูป (${ch.images.length})`),{fatal:true});
+    const big=ch.images.find(f=>f.size>KW_MAX_IMG);
+    if(big)throw Object.assign(new Error(`รูปใหญ่เกิน 20MB: ${big.name}`),{fatal:true});
+    ch.images.forEach((f,i)=>form.push([`images[${i}]`,f,f.name]));
+    if(ch.cover)form.push(['image_cover',ch.cover,ch.cover.name]);
+  } else {
+    if(ch.images||!ch.content||!ch.content.trim())throw Object.assign(new Error('ตอนนี้ไม่มีเนื้อหาข้อความ (หนังสือนิยายต้องเป็นข้อความ)'),{fatal:true});
+    form.push(['content',textToHtml(ch.content)]);
+  }
+  return kwPostForm('/writer/manage-episode/create',form);
+}
+
+// ─── Kairew manage episodes ──────────────────────────────
+async function kwLoadEpisodes(){
+  if(!selectedBook){log('err','กรุณาเลือกหนังสือก่อน');return;}
+  const btn=document.getElementById('load-chapters-btn');
+  btn.textContent='⏳ กำลังโหลด...'; btn.disabled=true;
+  try{
+    const page=await kwPage('/writer/manage-book/detail/'+encodeURIComponent(selectedBook.id));
+    publishedChapters=(page.props&&page.props.episode)||[];
+    kwRenderManageList(); document.getElementById('manage-area').classList.remove('hidden');
+    log('ok',`โหลด ${publishedChapters.length} ตอน · ${selectedBook.name}`);
+  }catch(e){log('err','โหลดล้มเหลว: '+e.message);}
+  btn.textContent='⬇ โหลดรายการตอนที่ลงแล้ว'; btn.disabled=false;
+}
+
+function kwEpisodeMeta(ep){
+  const price=ep.price_type==='free'?'ฟรี':ep.price_type==='follow'?`ติดตามฟรี/${parseFloat(ep.price)} เหรียญ`:`${parseFloat(ep.price)} เหรียญ`;
+  const share=ep.share_type==='hide'?' · ซ่อน':ep.share_type==='settime'?` · ตั้งเวลา ${String(ep.share_datetime||'').slice(0,16)}`:'';
+  return price+share;
+}
+
+function kwRenderManageList(){
+  const list=document.getElementById('manage-list'); list.innerHTML='';
+  if(!publishedChapters.length){list.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);padding:16px;text-align:center;">ไม่พบตอน</div>';updateManageCount();return;}
+  publishedChapters.forEach((ep,i)=>{
+    const div=document.createElement('div'); div.className='manage-item';
+    div.innerHTML=`<input type="checkbox" class="manage-check" data-id="${escHtml(String(ep.id))}" data-idx="${i}" onchange="onManageCheck(event,${i})"/>
+      <span class="manage-item-num">#${ep.ep_number??i+1}</span>
+      <span class="manage-item-title" title="${escHtml(ep.name)}">${escHtml(ep.name)}</span>
+      <span class="manage-item-meta">${escHtml(kwEpisodeMeta(ep))}</span>
+      <button class="ch-btn" onclick="openEditPublished('${escHtml(String(ep.id))}','')" title="แก้ไข">✏️</button>`;
+    list.appendChild(div);
+  });
+  updateManageCount();
+}
+
+async function kwDeleteEpisodes(ids){
+  log('info',`กำลังลบ ${ids.length} ตอน...`);
+  try{
+    const r=await kwRequest('POST','/writer/manage-episode/delete-multiple',{json:{id_list:ids.map(Number),book_id:Number(selectedBook.id)},timeout:120000});
+    if(!r.ok)throw kwErrorFrom(r);
+    log('ok',`ลบ ${ids.length} ตอนสำเร็จ`);
+    await kwLoadEpisodes();
+  }catch(e){log('err','ลบล้มเหลว: '+e.message);}
+}
+
+async function kwOpenEdit(id){
+  const ep0=publishedChapters.find(e=>String(e.id)===String(id));
+  log('info','กำลังโหลดตอน: '+(ep0?ep0.name:id));
+  try{
+    const page=await kwPage(`/writer/manage-book/detail/${encodeURIComponent(selectedBook.id)}/episode/edit/${encodeURIComponent(id)}`);
+    const ep=page.props&&page.props.episode;
+    if(!ep)throw new Error('ไม่พบข้อมูลตอน');
+    kwEditing=ep;
+    const cartoon=selectedBook.type==='cartoon';
+    document.getElementById('edit-title').value=ep.name||'';
+    document.getElementById('edit-content').value=cartoon?'':htmlToPlain(ep.content||'');
+    document.getElementById('edit-content').closest('.form-group').classList.toggle('hidden',cartoon);
+    openModal('modal-edit');
+  }catch(e){log('err','โหลดล้มเหลว: '+e.message);}
+}
+
+async function kwSaveEdit(title,content){
+  const ep=kwEditing; if(!ep)return;
+  const cartoon=selectedBook.type==='cartoon';
+  if(!cartoon&&!content.trim()){alert('กรุณากรอกเนื้อหา');return;}
+  const form=[['id',String(ep.id)],['name',title],['book_id',String(selectedBook.id)],['type',selectedBook.type],['price_type',ep.price_type||'free'],['share_type',ep.share_type||'hide']];
+  if(ep.price!=null)form.push(['price',String(ep.price)]);
+  if(ep.share_type!=='hide'&&ep.share_datetime)form.push(['share_datetime',String(ep.share_datetime).replace('T',' ').slice(0,19)]);
+  if(ep.message_to_reader!=null)form.push(['message_to_reader',ep.message_to_reader]);
+  if(!cartoon)form.push(['content',textToHtml(content)]);
+  try{
+    const res=await kwPostForm('/writer/manage-episode/update',form);
+    log('ok','✓ บันทึก: '+title+(res.warn?' · '+res.warn:'')); closeModal('modal-edit');
+    const ch=publishedChapters.find(c=>String(c.id)===String(ep.id)); if(ch)ch.name=title;
+    kwRenderManageList();
+  }catch(e){log('err','บันทึกล้มเหลว: '+e.message);}
+}
+
+// ─── Image chapters (Kairew cartoon) ─────────────────────
+const IMG_RE=/\.(jpe?g|png|webp|gif)$/i;
+function imgMime(name){const e=name.split('.').pop().toLowerCase();return e==='png'?'image/png':e==='webp'?'image/webp':e==='gif'?'image/gif':'image/jpeg';}
+function natCmp(a,b){return a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'});}
+
+function switchImgInput(m){
+  imgInputMode=m;
+  ['zip','folder','files'].forEach(k=>{
+    document.getElementById('img-in-'+k).classList.toggle('hidden',m!==k);
+    document.getElementById('tab-img-'+k).classList.toggle('active',m===k);
+  });
+}
+
+// items: [{path:'Folder/Sub/001.jpg', file:File}] → chapters grouped by parent folder
+function addImageChapters(items,fallbackTitle){
+  items=items.filter(it=>IMG_RE.test(it.path)&&!/(^|\/)(__MACOSX|\.)/.test(it.path));
+  if(!items.length){log('warn','ไม่พบไฟล์รูป (.jpg .png .webp .gif)');return;}
+  const groups=new Map();
+  items.forEach(it=>{
+    const parts=it.path.split('/'); parts.pop();
+    const key=parts.join('/');
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(it);
+  });
+  const keys=[...groups.keys()].sort(natCmp);
+  let added=0;
+  keys.forEach(key=>{
+    const list=groups.get(key).sort((a,b)=>natCmp(a.path,b.path));
+    const covers=list.filter(it=>/cover/i.test(it.path.split('/').pop()));
+    const pages=list.filter(it=>!covers.includes(it));
+    if(!pages.length)return;
+    const title=key?key.split('/').pop():fallbackTitle;
+    chapters.push({id:Date.now()+Math.random(),title,images:pages.map(it=>it.file),cover:covers.length?covers[0].file:null,content:'',status:'pending'});
+    added++;
+    const big=pages.filter(it=>it.file.size>KW_MAX_IMG).length;
+    if(pages.length>KW_MAX_IMGS||big)log('warn',`ตอน "${title}": ${pages.length} รูป${big?` · ใหญ่เกิน 20MB ${big} รูป`:''} — เกินข้อจำกัด Kairew`);
+  });
+  renderChapterList();
+  log('ok',`เพิ่ม ${added} ตอน (รวม ${items.length} รูป)`);
+}
+
+async function handleImageZip(file){
+  if(!file)return;
+  log('info','กำลังแตก ZIP: '+file.name);
+  try{
+    const entries=await unzipEntries(await file.arrayBuffer(),true);
+    const items=entries.map(e=>{const base=e.name.split('/').pop();return {path:e.name,file:new File([e.data],base,{type:imgMime(base)})};});
+    addImageChapters(items,file.name.replace(/\.zip$/i,''));
+  }catch(e){log('err','แตก ZIP ล้มเหลว: '+e.message);}
+}
+
+function handleImageFolder(files){
+  const arr=Array.from(files||[]); if(!arr.length)return;
+  // webkitRelativePath = "Picked/Ch01/001.jpg" → drop the picked folder name
+  const root=(arr[0].webkitRelativePath||'').split('/')[0]||'ตอนใหม่';
+  const items=arr.map(f=>{const parts=(f.webkitRelativePath||f.name).split('/');if(parts.length>1)parts.shift();return {path:parts.join('/'),file:f};});
+  addImageChapters(items,root);
+}
+
+function handleImageFiles(files){
+  const arr=Array.from(files||[]); if(!arr.length)return;
+  const title=document.getElementById('img-single-title').value.trim()||`ตอนที่ ${String(chapters.length+1).padStart(2,'0')}`;
+  addImageChapters(arr.map(f=>({path:f.name,file:f})),title);
+  document.getElementById('img-single-title').value='';
+}
+
+let previewUrls=[];
+function revokePreviewUrls(){previewUrls.forEach(u=>URL.revokeObjectURL(u));previewUrls=[];}
+function renderImagePreview(ch){
+  revokePreviewUrls();
+  const imgs=(ch.cover?[ch.cover]:[]).concat(ch.images);
+  const html=imgs.map((f,i)=>{const u=URL.createObjectURL(f);previewUrls.push(u);return `<figure><img loading="lazy" src="${u}"/><figcaption>${i===0&&ch.cover?'[ปก] ':''}${escHtml(f.name)}</figcaption></figure>`;}).join('');
+  document.getElementById('preview-chapter-name').textContent=`[${previewIndex+1}/${chapters.length}] ${ch.title} · ${ch.images.length} รูป`;
+  document.getElementById('preview-content').innerHTML=`<div class="img-grid">${html}</div>`;
+  document.getElementById('preview-html').textContent=imgs.map(f=>`${f.name} · ${(f.size/1024).toFixed(0)} KB`).join('\n');
+  switchPreviewTab('rendered'); openModal('modal-preview');
+}
 
 // ─── API helpers ─────────────────────────────────────────
 function apiGet(url){return fetch(url,{headers:{'authorization':'Bearer '+getToken(),'accept':'application/json','origin':'https://readrealm.co','referer':'https://readrealm.co/'}});}
@@ -1360,8 +1858,8 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
 // ─── Modal ────────────────────────────────────────────────
 function openModal(id){document.getElementById(id).classList.remove('hidden');}
-function closeModal(id){document.getElementById(id).classList.add('hidden');}
-document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.add('hidden');}));
+function closeModal(id){document.getElementById(id).classList.add('hidden');if(id==='modal-preview')revokePreviewUrls();}
+document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id);}));
 
 // ─── Log ──────────────────────────────────────────────────
 function log(type,msg){
@@ -1378,19 +1876,24 @@ function log(type,msg){
   document.getElementById('schedule-start').value=d.toISOString().slice(0,16);
   loadSavedToken();
   initBookmarklet();
-  log('info','ReadRealm Auto Poster v2.5 · พร้อมใช้งาน');
-  log('info','ใหม่: รองรับอัปโหลดจากไฟล์ EPUB');
+  kwInitBookmarklet();
+  let savedPf=null; try{savedPf=localStorage.getItem('ap_platform');}catch(e){}
+  switchPlatform(savedPf==='kairew'?'kairew':'readrealm', true);
+  log('info','Auto Poster v3.0 · พร้อมใช้งาน');
+  log('info','ใหม่: รองรับ Kairew (นิยาย + การ์ตูนแบบรูปภาพ)');
 })();
 
 // ─── Drag & drop ──────────────────────────────────────────
-['drop-zone','drop-zone-delim','drop-zone-zip','drop-zone-epub'].forEach(id=>{
+['drop-zone','drop-zone-delim','drop-zone-zip','drop-zone-epub','drop-zone-imgzip','drop-zone-imgfiles'].forEach(id=>{
   const el=document.getElementById(id); if(!el)return;
   el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('dragging');});
   el.addEventListener('dragleave',()=>el.classList.remove('dragging'));
   el.addEventListener('drop',e=>{
     e.preventDefault();el.classList.remove('dragging');
     const files=e.dataTransfer.files;
-    if(id==='drop-zone')handleFiles(files);
+    if(id==='drop-zone-imgzip')handleImageZip(files[0]);
+    else if(id==='drop-zone-imgfiles')handleImageFiles(files);
+    else if(id==='drop-zone')handleFiles(files);
     else if(id==='drop-zone-zip')handleZip(files[0]);
     else if(id==='drop-zone-epub')handleEpub(files[0]);
     else handleDelimFile(files[0]);
