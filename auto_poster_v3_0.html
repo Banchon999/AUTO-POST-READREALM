@@ -692,7 +692,7 @@ async function loadNovels() {
     renderNovels(); showTokenStatus('valid');
     log('ok',`โหลด ${rrBooks.length} เรื่อง (การ์ตูน ${comics.length} · นิยาย ${novels.length})`);
     const inactive = rrBooks.filter(b=>b.active===false);
-    if (inactive.length) log('warn',`${inactive.length} เรื่องยังไม่ถูกเปิดใช้งานโดยระบบ (activate=false → อาจไม่ขึ้นฟีด): ${inactive.map(b=>b.title).slice(0,5).join(', ')}${inactive.length>5?' …':''}`);
+    if (inactive.length) log('warn',`${inactive.length} เรื่องยังไม่ขึ้นฟีดหลัก (รอ/ไม่ผ่านการพิจารณาของทีม ReadRealm 1–3 วันทำการ · ยังอ่านได้ผ่านลิงก์ โปรไฟล์ และบุ๊กมาร์ก): ${inactive.map(b=>b.title).slice(0,5).join(', ')}${inactive.length>5?' …':''}`);
   } catch(e) { log('err','โหลดไม่สำเร็จ: '+e.message); }
   btn.textContent = '⬇ โหลดรายการนิยาย/การ์ตูน'; btn.disabled = false;
 }
@@ -706,7 +706,7 @@ function renderNovels() {
     const card = document.createElement('div');
     card.className = 'novel-card'+(sel?' selected':''); card.dataset.id = b.id;
     card.innerHTML = `${b.cover?`<img class="novel-thumb" src="${escHtml(b.cover)}" onerror="this.style.display='none'"/>`:'<div class="novel-thumb"></div>'}
-      <div class="novel-info"><div class="novel-title" title="${escHtml(b.title)}">${escHtml(b.title)}</div><div class="novel-meta"><span class="type-badge ${b.type==='comic'?'cartoon':''}">${b.type==='comic'?'การ์ตูน':'นิยาย'}</span>${b.cnt} ตอน${b.active===false?' · <span style="color:var(--yellow)" title="ระบบยังไม่เปิดใช้งานเรื่องนี้ อาจไม่ขึ้นฟีด">⚠ ยังไม่ activate</span>':''}</div></div>
+      <div class="novel-info"><div class="novel-title" title="${escHtml(b.title)}">${escHtml(b.title)}</div><div class="novel-meta"><span class="type-badge ${b.type==='comic'?'cartoon':''}">${b.type==='comic'?'การ์ตูน':'นิยาย'}</span>${b.cnt} ตอน${b.active===false?' · <span style="color:var(--yellow)" title="ยังไม่ขึ้นฟีดหลัก — รอหรือไม่ผ่านการพิจารณาของทีม ReadRealm (1–3 วันทำการ) · ยังอ่านได้ผ่านลิงก์/โปรไฟล์/บุ๊กมาร์ก">⚠ ยังไม่ขึ้นฟีด</span>':''}</div></div>
       <div class="novel-check ${sel?'':'hidden'}">✓</div>`;
     card.onclick = () => selectNovel(b.id, b.title, card);
     grid.appendChild(card);
