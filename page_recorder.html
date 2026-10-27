@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Request Recorder</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0f; --surface:#111118; --surface2:#1a1a24; --border:#2a2a3a; --accent:#7c5aff; --accent2:#a78bfa;
+          --green:#22c55e; --yellow:#eab308; --text:#e2e8f0; --dim:#94a3b8; --muted:#64748b;
+          --mono:'JetBrains Mono',monospace; --sans:'Sarabun',sans-serif; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; }
+  .app { max-width:760px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { font-family:var(--mono); font-size:12px; color:var(--dim); margin-bottom:20px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:14px; }
+  .card h2 { font-family:var(--mono); font-size:12px; color:var(--accent2); letter-spacing:.08em; text-transform:uppercase; margin-bottom:10px; }
+  ol { margin-left:20px; line-height:2; font-size:14px; color:var(--dim); }
+  ol b { color:var(--text); }
+  .bm { display:inline-block; padding:8px 18px; background:var(--accent); color:#fff; border-radius:8px; font-family:var(--mono); font-size:13px; text-decoration:none; cursor:grab; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .hint { font-size:12px; color:var(--muted); }
+  button { padding:7px 14px; border-radius:7px; border:1px solid var(--border); background:var(--surface2); color:var(--dim); font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover { color:var(--text); border-color:var(--accent); }
+  ul { margin-left:20px; line-height:1.9; font-size:13px; color:var(--dim); }
+  .ok { color:var(--green); } .warn { color:var(--yellow); }
+  #msg { font-family:var(--mono); font-size:12px; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>📼 Request Recorder</h1>
+  <p class="sub">บันทึกว่าเว็บส่งข้อมูลอะไรไปเซิร์ฟเวอร์ · ลบข้อมูลส่วนตัวออกอัตโนมัติ</p>
+
+  <div class="card">
+    <h2>1 · ติดตั้ง (ครั้งเดียว)</h2>
+    <div class="row">
+      <a id="bm" class="bm" href="#" onclick="event.preventDefault();" draggable="true">📼 Recorder</a>
+      <span class="hint">← ลากไปวางที่ Bookmark bar</span>
+      <button onclick="copyCode()">📋 คัดลอกโค้ด (วางใน Console)</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · ใช้งาน</h2>
+    <ol>
+      <li>เปิด<b>หน้าที่จะกดลงตอนจริง</b> เช่น หน้ารายชื่อตอนของการ์ตูนเรื่องนั้นบน readrealm.co</li>
+      <li>กดบุ๊กมาร์ก <b>📼 Recorder</b> <b>ในแท็บเดียวกันนั้น</b> → มุมขวาล่างจะมีกล่อง "กำลังบันทึก"<br><span class="warn">ถ้าเปิดเรื่องในแท็บใหม่ ต้องกดบุ๊กมาร์กในแท็บใหม่ด้วย — ระบบบันทึกเฉพาะแท็บที่กด</span></li>
+      <li>ทำงานบนเว็บตามปกติ เช่น <b>ลงตอนการ์ตูน 1 ตอน</b> (ตั้งเป็นซ่อนได้)</li>
+      <li>ก่อนดาวน์โหลด ดูตัวเลขในกล่อง: ควรมีคำขอแบบ <b>POST</b> เพิ่มขึ้นหลังกดบันทึกตอน (กล่องจะแสดงจำนวน POST ให้)</li>
+      <li>กด <b>💾 ดาวน์โหลด</b> ในกล่องนั้น → ได้ไฟล์ <code>.json</code> → ส่งไฟล์นั้นให้ Claude</li>
+    </ol>
+    <p class="hint" style="margin-top:8px;">⚠️ ถ้ากดรีเฟรชหรือเปลี่ยนหน้าแบบโหลดใหม่ทั้งหน้า การบันทึกจะหาย ให้กดบุ๊กมาร์กใหม่</p>
+  </div>
+
+  <div class="card">
+    <h2>สิ่งที่บันทึก / ไม่บันทึก</h2>
+    <ul>
+      <li class="ok">✓ ที่อยู่ API, method, ชื่อช่องข้อมูล, รูปแบบข้อมูล, ชื่อ/ขนาดไฟล์รูป, สถานะที่เซิร์ฟเวอร์ตอบ</li>
+      <li class="warn">✗ ไม่เก็บ: token, cookie, รหัสผ่าน, อีเมล, เบอร์โทร, ตัวไฟล์รูป</li>
+      <li class="warn">✗ ข้อความยาวถูกตัดเหลือ 80 ตัวอักษร (เนื้อหาตอนจะไม่ถูกเก็บทั้งหมด)</li>
+      <li>ไม่บันทึกไฟล์ระบบของเว็บ (js/css/รูป/ฟอนต์) และตัวติดตามโฆษณา</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// Runs inside the target site. Stringified into the bookmarklet: must not reference anything outside itself.
+function recorderMain(){
+  if(window.__apRec){window.__apRec.show();return;}
+  var MAX=80, LIMIT=400, entries=[], started=new Date().toISOString();
+  var SENS=/token|auth|pass|secret|cookie|session|csrf|xsrf|otp|email|e-mail|phone|tel\b|mobile|signature|credential|apikey|api_key/i;
+  var TRACK=/googletagmanager|google-analytics|doubleclick|facebook|hotjar|clarity\.ms|sentry|cloudflareinsights|\/cdn-cgi\//i;
+  var STATIC=/\/_next\/static|\/_next\/image|\.(js|mjs|css|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|map)(\?|$)/i;
+  function skip(m,u){return TRACK.test(u)||(m==='GET'&&STATIC.test(u));}
+  function cut(v,k){
+    if(v==null)return v;
+    if(typeof v==='boolean'||typeof v==='number')return (k&&SENS.test(k))?'<hidden>':v;
+    v=String(v);
+    if(k&&SENS.test(k))return '<hidden>';
+    if(/^(Bearer\s+)?eyJ[\w-]+\.[\w-]+\./.test(v))return '<jwt>';
+    if(/[\w.+-]+@[\w-]+\.[\w.]+/.test(v))v=v.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g,'<email>');
+    if(/(^|\D)0\d{8,9}(\D|$)/.test(v))v=v.replace(/(^|\D)0\d{8,9}(?=\D|$)/g,'$1<phone>');
+    return v.length>MAX?v.slice(0,MAX)+'…('+v.length+' chars)':v;
+  }
+  function shape(o,d,k){
+    if(d>7)return '…';
+    if(Array.isArray(o)){var r=o.slice(0,3).map(function(x){return shape(x,d+1,k);});if(o.length>3)r.push('…'+o.length+' items');return r;}
+    if(o&&typeof o==='object'){var r2={},ks=Object.keys(o);ks.slice(0,80).forEach(function(x){r2[x]=shape(o[x],d+1,x);});if(ks.length>80)r2['…']=ks.length+' keys';return r2;}
+    return cut(o,k);
+  }
+  function u2(u){try{var x=new URL(u,location.href),q={};x.searchParams.forEach(function(v,k){q[k]=cut(v,k);});return {host:x.host,path:x.pathname,query:q};}catch(e){return {raw:cut(String(u))};}}
+  function hd(h){var r={};try{
+    if(!h)return r;
+    if(typeof Headers!=='undefined'&&h instanceof Headers)h.forEach(function(v,k){r[k]=SENS.test(k)?'<hidden>':cut(v);});
+    else if(Array.isArray(h))h.forEach(function(p){r[p[0]]=SENS.test(p[0])?'<hidden>':cut(p[1]);});
+    else Object.keys(h).forEach(function(k){r[k]=SENS.test(k)?'<hidden>':cut(h[k]);});
+  }catch(e){}return r;}
+  function bd(b){
+    if(b==null)return null;
+    try{
+      if(typeof b==='string'){try{return {json:shape(JSON.parse(b),0)};}catch(e){
+        if(/^[^=&\s]+=[^&]*(&[^=&\s]+=[^&]*)*$/.test(b)){var q={};new URLSearchParams(b).forEach(function(v,k){q[k]=cut(v,k);});return {urlencoded:q};}
+        return {text:cut(b)};}}
+      if(typeof FormData!=='undefined'&&b instanceof FormData){var f=[];b.forEach(function(v,k){f.push([k,(typeof File!=='undefined'&&v instanceof File)?{file:v.name,type:v.type,size:v.size}:cut(v,k)]);});var n=f.length;if(n>60){f=f.slice(0,60).concat([['…',n+' fields total']]);}return {formData:f};}
+      if(typeof URLSearchParams!=='undefined'&&b instanceof URLSearchParams){var q2={};b.forEach(function(v,k){q2[k]=cut(v,k);});return {urlencoded:q2};}
+      if(typeof Blob!=='undefined'&&b instanceof Blob)return {blob:{type:b.type,size:b.size,name:b.name}};
+      if(b instanceof ArrayBuffer||ArrayBuffer.isView(b))return {binary:b.byteLength};
+    }catch(e){return {error:String(e)};}
+    return {other:Object.prototype.toString.call(b)};
+  }
+  function resp(text,ct){if(text==null)return null;if(/json/.test(ct||'')||/^\s*[\[{]/.test(text)){try{return shape(JSON.parse(text),0);}catch(e){}}return /html/.test(ct||'')?'<html '+text.length+' chars>':cut(text);}
+  function add(e){if(entries.length>=LIMIT)return;e.t=new Date().toISOString().slice(11,23);entries.push(e);upd();}
+
+  var oFetch=window.fetch;
+  if(oFetch)window.fetch=function(input,init){
+    var url=typeof input==='string'?input:(input&&input.url)||String(input);
+    var method=((init&&init.method)||(input&&input.method)||'GET').toUpperCase();
+    if(skip(method,url))return oFetch.apply(this,arguments);
+    var e={via:'fetch',method:method,url:u2(url),headers:hd((init&&init.headers)||(input&&input.headers)),body:bd(init&&init.body)};
+    var p=oFetch.apply(this,arguments);
+    p.then(function(r){e.status=r.status;var ct=r.headers.get('content-type')||'';
+      if(/event-stream|octet|image|video|audio/.test(ct)){e.response='<'+ct+'>';add(e);return;}
+      r.clone().text().then(function(t){e.response=resp(t,ct);add(e);},function(){add(e);});
+    },function(err){e.error=String(err);add(e);});
+    return p;
+  };
+  var X=XMLHttpRequest.prototype,oOpen=X.open,oSend=X.send,oSet=X.setRequestHeader;
+  X.open=function(m,u){this.__r={via:'xhr',method:String(m).toUpperCase(),url:u2(u),rawUrl:String(u),headers:{}};return oOpen.apply(this,arguments);};
+  X.setRequestHeader=function(k,v){if(this.__r)this.__r.headers[k]=SENS.test(k)?'<hidden>':cut(v);return oSet.apply(this,arguments);};
+  X.send=function(b){var x=this,e=x.__r;
+    if(e&&!skip(e.method,e.rawUrl)){delete e.rawUrl;e.body=bd(b);
+      x.addEventListener('loadend',function(){e.status=x.status;var ct=x.getResponseHeader('content-type')||'';
+        try{e.response=(x.responseType===''||x.responseType==='text')?resp(x.responseText,ct):(x.responseType==='json'?shape(x.response,0):'<'+x.responseType+'>');}catch(_){}
+        add(e);});}
+    return oSend.apply(this,arguments);};
+
+  var box=document.createElement('div');
+  box.style.cssText='position:fixed;right:12px;bottom:12px;z-index:2147483647;background:#111118;color:#e2e8f0;border:1px solid #7c5aff;border-radius:10px;padding:10px 12px;font:600 12px sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);display:flex;gap:8px;align-items:center';
+  var lbl=document.createElement('span');box.appendChild(lbl);
+  function btn(t,f){var b=document.createElement('button');b.textContent=t;b.style.cssText='background:#1a1a24;color:#e2e8f0;border:1px solid #3d3d55;border-radius:6px;padding:4px 8px;font:12px sans-serif;cursor:pointer';b.onclick=f;box.appendChild(b);return b;}
+  function report(){return JSON.stringify({recorder:'AutoPoster Request Recorder v1',page:u2(location.href),title:document.title.slice(0,120),started:started,saved:new Date().toISOString(),count:entries.length,entries:entries},null,1);}
+  btn('💾 ดาวน์โหลด',function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([report()],{type:'application/json'}));a.download='requests-'+location.hostname+'-'+Date.now()+'.json';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},2000);});
+  btn('📋 คัดลอก',function(){navigator.clipboard.writeText(report()).then(function(){lbl.textContent='✓ คัดลอกแล้ว';setTimeout(upd,1500);},function(){alert('คัดลอกไม่ได้ — ใช้ปุ่มดาวน์โหลดแทน');});});
+  btn('🗑',function(){entries.length=0;upd();});
+  btn('✕',function(){box.style.display='none';});
+  function upd(){var w=entries.filter(function(e){return e.method!=='GET';}).length;lbl.textContent='⏺ กำลังบันทึก · '+entries.length+' requests · POST/PUT '+w;}
+  upd();document.body.appendChild(box);
+  window.__apRec={show:function(){box.style.display='flex';},entries:entries,report:report};
+}
+
+function recorderCode(){return '('+recorderMain.toString()+')();';}
+document.getElementById('bm').href='javascript:'+encodeURIComponent(recorderCode());
+function copyCode(){
+  const m=document.getElementById('msg');
+  (navigator.clipboard?navigator.clipboard.writeText(recorderCode()):Promise.reject()).then(
+    ()=>{m.className='ok';m.textContent='✓ คัดลอกแล้ว → เปิดเว็บเป้าหมาย กด F12 → Console → วาง → Enter';},
+    ()=>{prompt('คัดลอกโค้ดนี้ไปวางใน Console',recorderCode());});
+}
+</script>
+</body>
+</html>
