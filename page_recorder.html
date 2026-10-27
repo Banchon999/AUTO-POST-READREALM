@@ -46,9 +46,10 @@
   <div class="card">
     <h2>2 · ใช้งาน</h2>
     <ol>
-      <li>เปิดหน้าเว็บที่ต้องการ เช่น <b>หน้าจัดการตอนการ์ตูนบน readrealm.co</b></li>
-      <li>กดบุ๊กมาร์ก <b>📼 Recorder</b> → มุมขวาล่างจะมีกล่อง "กำลังบันทึก"</li>
+      <li>เปิด<b>หน้าที่จะกดลงตอนจริง</b> เช่น หน้ารายชื่อตอนของการ์ตูนเรื่องนั้นบน readrealm.co</li>
+      <li>กดบุ๊กมาร์ก <b>📼 Recorder</b> <b>ในแท็บเดียวกันนั้น</b> → มุมขวาล่างจะมีกล่อง "กำลังบันทึก"<br><span class="warn">ถ้าเปิดเรื่องในแท็บใหม่ ต้องกดบุ๊กมาร์กในแท็บใหม่ด้วย — ระบบบันทึกเฉพาะแท็บที่กด</span></li>
       <li>ทำงานบนเว็บตามปกติ เช่น <b>ลงตอนการ์ตูน 1 ตอน</b> (ตั้งเป็นซ่อนได้)</li>
+      <li>ก่อนดาวน์โหลด ดูตัวเลขในกล่อง: ควรมีคำขอแบบ <b>POST</b> เพิ่มขึ้นหลังกดบันทึกตอน (กล่องจะแสดงจำนวน POST ให้)</li>
       <li>กด <b>💾 ดาวน์โหลด</b> ในกล่องนั้น → ได้ไฟล์ <code>.json</code> → ส่งไฟล์นั้นให้ Claude</li>
     </ol>
     <p class="hint" style="margin-top:8px;">⚠️ ถ้ากดรีเฟรชหรือเปลี่ยนหน้าแบบโหลดใหม่ทั้งหน้า การบันทึกจะหาย ให้กดบุ๊กมาร์กใหม่</p>
@@ -145,7 +146,7 @@ function recorderMain(){
   btn('📋 คัดลอก',function(){navigator.clipboard.writeText(report()).then(function(){lbl.textContent='✓ คัดลอกแล้ว';setTimeout(upd,1500);},function(){alert('คัดลอกไม่ได้ — ใช้ปุ่มดาวน์โหลดแทน');});});
   btn('🗑',function(){entries.length=0;upd();});
   btn('✕',function(){box.style.display='none';});
-  function upd(){lbl.textContent='⏺ กำลังบันทึก · '+entries.length+' requests';}
+  function upd(){var w=entries.filter(function(e){return e.method!=='GET';}).length;lbl.textContent='⏺ กำลังบันทึก · '+entries.length+' requests · POST/PUT '+w;}
   upd();document.body.appendChild(box);
   window.__apRec={show:function(){box.style.display='flex';},entries:entries,report:report};
 }
