@@ -337,7 +337,7 @@
             <div class="drop-sub">รูปทั้งหมด = 1 ตอน · เรียงตามชื่อไฟล์</div>
           </div>
         </div>
-        <div class="alert alert-warn mt8" style="font-size:12px;">ข้อจำกัด Kairew: ไม่เกิน 300 รูป/ตอน · ไม่เกิน 20MB/รูป · รวมไม่ควรเกิน 100MB/ตอน</div>
+        <div class="alert alert-warn mt8" style="font-size:12px;" id="img-limit-note">ข้อจำกัด Kairew: ไม่เกิน 300 รูป/ตอน · ไม่เกิน 20MB/รูป · รวมไม่ควรเกิน 100MB/ตอน</div>
       </div>
       <div id="text-input">
       <div class="tabs" style="margin-bottom:10px;">
@@ -599,6 +599,7 @@ let mode = 'batch', inputMode = 'files';
 let publishedChapters = [], editingRawId = null, editingChapterData = null, previewIndex = 0;
 let prefixApplied = false;
 let platform = 'readrealm', selectedBook = null, imgInputMode = 'zip';
+let rrBooks = [], rrSelectedType = 'novel';
 
 // ─── Token / Novels ──────────────────────────────────────
 function getToken() { return document.getElementById('bearer-token').value.trim(); }
@@ -675,38 +676,51 @@ async function loadNovels() {
   const btn = document.getElementById('load-novels-btn');
   btn.textContent = '⏳ กำลังโหลด...'; btn.disabled = true;
   try {
-    const r = await apiGet('https://api-writer.readrealm.co/writer/novels/getNovelsList?novel_subject=&novel_status=&novel_category=&novel_rating=&novel_publish=&per_page=50&page=1');
-    renderNovels(await r.json()); showTokenStatus('valid');
+    const [rn, rc] = await Promise.all([
+      apiGet('https://api-writer.readrealm.co/writer/novels/getNovelsList?novel_subject=&novel_status=&novel_category=&novel_rating=&novel_publish=&per_page=50&page=1'),
+      apiGet('https://api-writer.readrealm.co/writer/comics/getComicsList?comic_subject=&comic_status=&comic_category=&comic_rating=&comic_publish=&per_page=50&page=1')
+    ]);
+    if (rn.status===401 || rc.status===401) { showTokenStatus('invalid'); throw new Error('Token ผิดหรือหมดอายุ (401)'); }
+    const dn = rn.ok ? await rn.json() : {}, dc = rc.ok ? await rc.json() : {};
+    if (!rc.ok) log('warn','โหลดรายการการ์ตูนไม่ได้: '+rc.status);
+    const novels = dn?.data||dn?.novels||dn?.items||(Array.isArray(dn)?dn:[]);
+    const comics = dc?.data||(Array.isArray(dc)?dc:[]);
+    rrBooks = [
+      ...comics.map(c=>({id:c.comic_ID,title:c.comic_subject||'ไม่มีชื่อ',cover:c.comic_cover&&c.comic_cover.fileName?'https://image.readrealm.co/'+c.comic_cover.fileName:'',cnt:c.comic_chapter_count??0,type:'comic',active:c.comic_activate})),
+      ...novels.map(n=>({id:n.novel_ID||n.id||n._id,title:n.novel_subject||n.title||n.name||'ไม่มีชื่อ',cover:n.novel_cover||n.cover||'',cnt:n.total_chapters||n.chapter_count||n.novel_chapter_count||0,type:'novel',active:n.novel_activate}))
+    ];
+    renderNovels(); showTokenStatus('valid');
+    log('ok',`โหลด ${rrBooks.length} เรื่อง (การ์ตูน ${comics.length} · นิยาย ${novels.length})`);
+    const inactive = rrBooks.filter(b=>b.active===false);
+    if (inactive.length) log('warn',`${inactive.length} เรื่องยังไม่ถูกเปิดใช้งานโดยระบบ (activate=false → อาจไม่ขึ้นฟีด): ${inactive.map(b=>b.title).slice(0,5).join(', ')}${inactive.length>5?' …':''}`);
   } catch(e) { log('err','โหลดไม่สำเร็จ: '+e.message); }
-  btn.textContent = '⬇ โหลดรายการนิยาย'; btn.disabled = false;
+  btn.textContent = '⬇ โหลดรายการนิยาย/การ์ตูน'; btn.disabled = false;
 }
 
-function renderNovels(data) {
+function renderNovels() {
   const grid = document.getElementById('novel-grid');
-  const novels = data?.data||data?.novels||data?.items||(Array.isArray(data)?data:[]);
-  if (!novels.length) { grid.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);grid-column:1/-1;padding:16px;text-align:center;">ไม่พบนิยาย</div>'; return; }
+  if (!rrBooks.length) { grid.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);grid-column:1/-1;padding:16px;text-align:center;">ไม่พบเรื่อง</div>'; return; }
   grid.innerHTML = '';
-  novels.forEach(n => {
-    const id = n.novel_ID||n.id||n._id;
-    const title = n.novel_subject||n.title||n.name||'ไม่มีชื่อ';
-    const cover = n.novel_cover||n.cover||'';
-    const cnt = n.total_chapters||n.chapter_count||0;
+  rrBooks.forEach(b => {
+    const sel = String(b.id)===String(selectedNovelId);
     const card = document.createElement('div');
-    card.className = 'novel-card'; card.dataset.id = id;
-    card.innerHTML = `${cover?`<img class="novel-thumb" src="${cover}" onerror="this.style.display='none'"/>`:'<div class="novel-thumb"></div>'}
-      <div class="novel-info"><div class="novel-title" title="${title}">${title}</div><div class="novel-meta">${cnt} ตอน · ID: ${String(id).slice(0,8)}...</div></div>
-      <div class="novel-check hidden">✓</div>`;
-    card.onclick = () => selectNovel(id, title, card);
+    card.className = 'novel-card'+(sel?' selected':''); card.dataset.id = b.id;
+    card.innerHTML = `${b.cover?`<img class="novel-thumb" src="${escHtml(b.cover)}" onerror="this.style.display='none'"/>`:'<div class="novel-thumb"></div>'}
+      <div class="novel-info"><div class="novel-title" title="${escHtml(b.title)}">${escHtml(b.title)}</div><div class="novel-meta"><span class="type-badge ${b.type==='comic'?'cartoon':''}">${b.type==='comic'?'การ์ตูน':'นิยาย'}</span>${b.cnt} ตอน${b.active===false?' · <span style="color:var(--yellow)" title="ระบบยังไม่เปิดใช้งานเรื่องนี้ อาจไม่ขึ้นฟีด">⚠ ยังไม่ activate</span>':''}</div></div>
+      <div class="novel-check ${sel?'':'hidden'}">✓</div>`;
+    card.onclick = () => selectNovel(b.id, b.title, card);
     grid.appendChild(card);
   });
-  log('ok',`โหลดนิยาย ${novels.length} เรื่อง`);
 }
 
 function selectNovel(id, title, el) {
   document.querySelectorAll('.novel-card').forEach(c => { c.classList.remove('selected'); c.querySelector('.novel-check').classList.add('hidden'); });
   el.classList.add('selected'); el.querySelector('.novel-check').classList.remove('hidden');
   selectedNovelId = id; selectedNovelTitle = title;
-  if (platform==='kairew') { selectedBook = kwBooks.find(b=>String(b.id)===String(id)) || null; applyBookType(); }
+  if (platform==='kairew') { selectedBook = kwBooks.find(b=>String(b.id)===String(id)) || null; }
+  else { const b = rrBooks.find(x=>String(x.id)===String(id)); rrSelectedType = b ? b.type : 'novel'; }
+  publishedChapters=[]; document.getElementById('manage-list').innerHTML=''; document.getElementById('manage-area').classList.add('hidden');
+  applyBookType();
   log('info','เลือก: '+title);
 }
 
@@ -1221,6 +1235,19 @@ async function loadPublishedChapters(){
   const btn=document.getElementById('load-chapters-btn');
   btn.textContent='⏳ กำลังโหลด...'; btn.disabled=true;
   try {
+    if(rrSelectedType==='comic'){
+      publishedChapters=[]; let page=1,total=0;
+      do{
+        const r=await apiGet(`https://api-writer.readrealm.co/writer/comics/chapters/getChaptersList?comic_ID=${encodeURIComponent(selectedNovelId)}&page=${page}&per_page=50&sort_column=asc`);
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const d=await r.json(); const rows=d?.data||[]; total=d?.total??rows.length;
+        publishedChapters.push(...rows); page++;
+        if(!rows.length)break;
+      }while(publishedChapters.length<total&&page<100);
+      renderManageList(); document.getElementById('manage-area').classList.remove('hidden');
+      log('ok',`โหลด ${publishedChapters.length} ตอน · total: ${total}`);
+      btn.textContent='⬇ โหลดรายการตอนที่ลงแล้ว'; btn.disabled=false; return;
+    }
     const r=await apiGet(`https://api-writer.readrealm.co/writer/novels/chapters/getChaptersList?novel_ID=${selectedNovelId}&per_page=500&page=1&sort_column=asc`);
     const data=await r.json();
     publishedChapters=data?.data||data?.chapters||data?.items||(Array.isArray(data)?data:[]);
@@ -1235,16 +1262,17 @@ function renderManageList(){
   const list=document.getElementById('manage-list'); list.innerHTML='';
   if(!publishedChapters.length){list.innerHTML='<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);padding:16px;text-align:center;">ไม่พบตอน</div>';return;}
   publishedChapters.forEach((ch,i)=>{
-    const id=ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
-    const title=ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
-    const price=ch.novel_chapter_price!=null?(ch.novel_chapter_price===0?'ฟรี':ch.novel_chapter_price+' เหรียญ'):
-                ch.chapter_price!=null?(ch.chapter_price===0?'ฟรี':ch.chapter_price+' เหรียญ'):'';
+    const id=ch.comic_chapter_ID||ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id;
+    const title=ch.comic_chapter_title||ch.novel_chapter_title||ch.chapter_title||ch.title||'ไม่มีชื่อ';
+    const pr=ch.comic_chapter_price??ch.novel_chapter_price??ch.chapter_price;
+    const pub=ch.comic_chapter_publish??ch.novel_chapter_publish;
+    const price=(pr!=null?(Number(pr)===0?'ฟรี':pr+' เหรียญ'):'')+(pub===false?' · ซ่อน':'');
     const div=document.createElement('div'); div.className='manage-item';
     div.innerHTML=`<input type="checkbox" class="manage-check" data-id="${escHtml(String(id))}" data-idx="${i}" onchange="onManageCheck(event,${i})"/>
       <span class="manage-item-num">#${i+1}</span>
       <span class="manage-item-title" title="${escHtml(title)}">${escHtml(title)}</span>
-      <span class="manage-item-meta">${price}</span>
-      <button class="ch-btn" onclick="openEditPublished('${escHtml(String(id))}','${escHtml(title)}')" title="แก้ไข">✏️</button>`;
+      <span class="manage-item-meta">${escHtml(price)}</span>
+      ${ch.comic_chapter_ID?'':`<button class="ch-btn" onclick="openEditPublished('${escHtml(String(id))}','${escHtml(title)}')" title="แก้ไข">✏️</button>`}`;
     list.appendChild(div);
   });
   updateManageCount();
@@ -1267,11 +1295,11 @@ async function deleteSelected(){
   if(platform==='kairew')return kwDeleteEpisodes(sel);
   log('info',`กำลังลบ ${sel.length} ตอน...`);
   try {
-    const r=await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterAction',{action:'delete',chapter_select:sel});
+    const r=await apiPost(`https://api-writer.readrealm.co/writer/${rrSelectedType==='comic'?'comics':'novels'}/chapters/chapterAction`,{action:'delete',chapter_select:sel});
     if(r.ok){
       log('ok',`ลบ ${sel.length} ตอนสำเร็จ`);
       publishedChapters=publishedChapters.filter(ch=>{
-        const id=String(ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id);
+        const id=String(ch.comic_chapter_ID||ch.novel_chapter_ID||ch.chapter_ID||ch.id||ch._id);
         return !sel.includes(id);
       });
       renderManageList();
@@ -1398,6 +1426,13 @@ async function startUpload(){
           log('ok',`[${done}/${total}] ✓ ${ch.title}${chPrice>0?' · '+chPrice+' เหรียญ':' · ฟรี'}${res.warn?' · '+res.warn:''}`);
           break;
         }
+        if(rrSelectedType==='comic'){
+          await rrCreateComicChapter(ch,schedIdx,note,retry);
+          success=true;setChapterStatus(ch.id,'done');done++;const chPrice=getPrice(schedIdx);schedIdx++;
+          log('ok',`[${done}/${total}] ✓ ${ch.title} · ${ch.images.length} รูป${chPrice>0?' · '+chPrice+' เหรียญ':' · ฟรี'}`);
+          break;
+        }
+        if(ch.images)throw Object.assign(new Error('ตอนนี้เป็นรูป แต่เรื่องที่เลือกเป็นนิยาย'),{fatal:true});
         const payload={chapter_ID:"0",novel_ID:selectedNovelId,chapter_title:ch.title,chapter_content:textToHtml(ch.content),chapter_note:note,chapter_price:getPrice(schedIdx),chapter_publish:isPublish(),chapter_publish_datetime:getPublishDatetime(schedIdx)};
         const r=await apiPost('https://api-writer.readrealm.co/writer/novels/chapters/chapterCreate',payload);
         const resp=await r.json().catch(()=>({}));
@@ -1456,20 +1491,24 @@ function switchPlatform(p, silent=false){
   document.getElementById('auth-rr').classList.toggle('hidden',kw);
   document.getElementById('auth-kw').classList.toggle('hidden',!kw);
   document.getElementById('kw-follow-row').classList.toggle('hidden',!kw);
-  document.getElementById('card2-title').textContent=kw?'02 · เลือกหนังสือ':'02 · เลือกนิยาย';
-  document.getElementById('load-novels-btn').textContent=kw?'⬇ โหลดรายการหนังสือ':'⬇ โหลดรายการนิยาย';
+  document.getElementById('card2-title').textContent='02 · เลือกเรื่อง';
+  document.getElementById('load-novels-btn').textContent=kw?'⬇ โหลดรายการหนังสือ':'⬇ โหลดรายการนิยาย/การ์ตูน';
   // reset selections that belong to the other platform
   selectedNovelId=null; selectedNovelTitle=''; selectedBook=null;
   publishedChapters=[]; document.getElementById('manage-list').innerHTML=''; document.getElementById('manage-area').classList.add('hidden');
   document.getElementById('novel-grid').innerHTML=`<div style="color:var(--text-muted);font-size:13px;font-family:var(--mono);grid-column:1/-1;padding:16px;text-align:center;">${kw?'เชื่อม Kairew แล้วกด "โหลดรายการหนังสือ"':'กรอก Token แล้วกด "โหลดรายการนิยาย"'}</div>`;
+  rrSelectedType='novel';
   if(kw&&kwBooks.length)kwRenderBooks();
+  if(!kw&&rrBooks.length)renderNovels();
   applyBookType();
   if(!silent)log('info','เปลี่ยนเป็น '+(kw?'Kairew':'ReadRealm'));
 }
 
 // Show image inputs for Kairew cartoon books, text inputs otherwise
 function applyBookType(){
-  const cartoon=platform==='kairew'&&selectedBook&&selectedBook.type==='cartoon';
+  const cartoon=isImageBook();
+  const lim=imgLimits();
+  document.getElementById('img-limit-note').textContent=`ข้อจำกัด ${platform==='kairew'?'Kairew':'ReadRealm'}: ไม่เกิน ${lim.count} รูป/ตอน · ไม่เกิน 20MB/รูป · ${lim.types}`;
   document.getElementById('kw-image-input').classList.toggle('hidden',!cartoon);
   document.getElementById('text-input').classList.toggle('hidden',cartoon);
   document.getElementById('tab-single').classList.toggle('hidden',cartoon);
@@ -1766,10 +1805,52 @@ function switchImgInput(m){
   });
 }
 
+function isImageBook(){return platform==='kairew'?!!(selectedBook&&selectedBook.type==='cartoon'):rrSelectedType==='comic';}
+function imgLimits(){return platform==='kairew'?{count:KW_MAX_IMGS,types:'jpg png webp gif',re:IMG_RE}:{count:RR_MAX_IMGS,types:'jpg png webp เท่านั้น',re:/\.(jpe?g|png|webp)$/i};}
+
+// ─── ReadRealm comic upload ──────────────────────────────
+// Same 2 steps as readrealm.co: chapterCreate (JSON) → uploadContent once per image, in order.
+const RR_MAX_IMGS=100;
+async function rrCreateComicChapter(ch,idx,note,retry){
+  if(!ch.images||!ch.images.length)throw Object.assign(new Error('ตอนนี้ไม่มีรูป (เรื่องการ์ตูนต้องอัปเป็นรูป)'),{fatal:true});
+  if(ch.images.length>RR_MAX_IMGS)throw Object.assign(new Error(`รูปเกิน ${RR_MAX_IMGS} รูป (${ch.images.length})`),{fatal:true});
+  const bad=ch.images.find(f=>!/\.(jpe?g|png|webp)$/i.test(f.name)||f.size>KW_MAX_IMG);
+  if(bad)throw Object.assign(new Error(`ไฟล์ไม่รองรับหรือใหญ่เกิน 20MB: ${bad.name}`),{fatal:true});
+  const payload={chapter_ID:"0",comic_ID:selectedNovelId,chapter_title:ch.title,chapter_content_old:[],chapter_note:note||'',chapter_price:getPrice(idx),chapter_publish:isPublish(),chapter_publish_datetime:getPublishDatetime(idx)};
+  const r=await apiPost('https://api-writer.readrealm.co/writer/comics/chapters/chapterCreate',payload);
+  const resp=await r.json().catch(()=>({}));
+  if(!r.ok||!resp.chapter_ID){
+    const err=new Error(`สร้างตอนไม่สำเร็จ ${r.status}: ${resp?.message||JSON.stringify(resp)}`);
+    if(r.status===401||r.status===403){err.fatal=true;err.stopAll=true;} else if(r.status>=400&&r.status<500)err.fatal=true;
+    throw err;
+  }
+  const chapterId=resp.chapter_ID;
+  // From here the chapter exists: never let the outer loop retry (it would create a duplicate).
+  for(let i=0;i<ch.images.length;i++){
+    const f=ch.images[i]; let ok=false,last='';
+    for(let a=0;a<=retry&&!ok;a++){
+      if(a>0){await sleep(2000);log('warn',`  retry รูป ${i+1}/${ch.images.length}: ${f.name}`);}
+      try{
+        const fd=new FormData(); fd.append('chapter_ID',chapterId); fd.append('image_content',f,f.name);
+        const ur=await fetch('https://api-writer.readrealm.co/writer/comics/chapters/uploadContent',{method:'POST',headers:{'authorization':'Bearer '+getToken(),'accept':'application/json, text/plain, */*'},body:fd});
+        if(ur.ok)ok=true; else last=ur.status+' '+(await ur.text().catch(()=>'')).slice(0,120);
+      }catch(e){last=e.message;}
+    }
+    if(!ok)throw Object.assign(new Error(`ตอนถูกสร้างแล้ว (ID ${chapterId}) แต่อัปรูป ${i+1}/${ch.images.length} "${f.name}" ไม่สำเร็จ: ${last} — แก้หรือลบตอนนี้บนเว็บก่อนอัปซ้ำ`),{fatal:true});
+    if(ch.images.length>5&&(i+1)%10===0)log('info',`  ${ch.title}: อัปรูป ${i+1}/${ch.images.length}`);
+  }
+  if(ch.cover)log('info',`  ${ch.title}: ข้ามไฟล์ปก "${ch.cover.name}" (ReadRealm ไม่มีปกรายตอน)`);
+  return chapterId;
+}
+
 // items: [{path:'Folder/Sub/001.jpg', file:File}] → chapters grouped by parent folder
 function addImageChapters(items,fallbackTitle){
-  items=items.filter(it=>IMG_RE.test(it.path)&&!/(^|\/)(__MACOSX|\.)/.test(it.path));
-  if(!items.length){log('warn','ไม่พบไฟล์รูป (.jpg .png .webp .gif)');return;}
+  const lim=imgLimits();
+  items=items.filter(it=>!/(^|\/)(__MACOSX|\.)/.test(it.path));
+  const skipped=items.filter(it=>IMG_RE.test(it.path)&&!lim.re.test(it.path)).length;
+  items=items.filter(it=>lim.re.test(it.path));
+  if(skipped)log('warn',`ข้าม ${skipped} ไฟล์ที่เว็บนี้ไม่รองรับ (รองรับ ${lim.types})`);
+  if(!items.length){log('warn','ไม่พบไฟล์รูปที่รองรับ ('+lim.types+')');return;}
   const groups=new Map();
   items.forEach(it=>{
     const parts=it.path.split('/'); parts.pop();
@@ -1788,7 +1869,7 @@ function addImageChapters(items,fallbackTitle){
     chapters.push({id:Date.now()+Math.random(),title,images:pages.map(it=>it.file),cover:covers.length?covers[0].file:null,content:'',status:'pending'});
     added++;
     const big=pages.filter(it=>it.file.size>KW_MAX_IMG).length;
-    if(pages.length>KW_MAX_IMGS||big)log('warn',`ตอน "${title}": ${pages.length} รูป${big?` · ใหญ่เกิน 20MB ${big} รูป`:''} — เกินข้อจำกัด Kairew`);
+    if(pages.length>lim.count||big)log('warn',`ตอน "${title}": ${pages.length} รูป${big?` · ใหญ่เกิน 20MB ${big} รูป`:''} — เกินข้อจำกัดของเว็บ (ตอนนี้จะอัปไม่ผ่าน)`);
   });
   renderChapterList();
   log('ok',`เพิ่ม ${added} ตอน (รวม ${items.length} รูป)`);
@@ -1880,7 +1961,7 @@ function log(type,msg){
   let savedPf=null; try{savedPf=localStorage.getItem('ap_platform');}catch(e){}
   switchPlatform(savedPf==='kairew'?'kairew':'readrealm', true);
   log('info','Auto Poster v3.0 · พร้อมใช้งาน');
-  log('info','ใหม่: รองรับ Kairew (นิยาย + การ์ตูนแบบรูปภาพ)');
+  log('info','ใหม่: ReadRealm ลงการ์ตูน (เว็บตูน) ได้แล้ว · Kairew รองรับนิยาย + การ์ตูน');
 })();
 
 // ─── Drag & drop ──────────────────────────────────────────
